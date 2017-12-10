@@ -2,7 +2,7 @@
 
 Estrada Velha de Colares and the different names it assumes between Sintra and Colares constitutes a brain cracking mystery that puzzled several brilliant minds throughout the ages ...
 
-Could you be the one that solves the mistery ?  :)
+Could you be the one that solves the mystery ?  :)
 
 
 # Elm Game Narrative Starter
