@@ -5,14 +5,17 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import ClientTypes exposing (..)
 import Components exposing (..)
+import TranslationHelper exposing (getInLanguage)
 
 
 view :
     Entity
     -> List Entity
     -> List Entity
+    -> List String
+    -> String
     -> Html Msg
-view currentLocation props characters =
+view currentLocation props characters lAlertMessages lgId =
     let
         isEmpty =
             List.isEmpty characters && List.isEmpty props
@@ -22,7 +25,7 @@ view currentLocation props characters =
                 [ class "CurrentSummary__StoryElement u-selectable"
                 , onClick <| msg <| Tuple.first entity
                 ]
-                [ text <| .name <| getDisplayInfo entity ]
+                [ text <| .name <| getSingleLgDisplayInfo lgId entity ]
 
         format list =
             let
@@ -31,10 +34,10 @@ view currentLocation props characters =
                         (List.take (List.length list - 1) list
                             |> List.intersperse (text ", ")
                         )
-                            ++ (text " and ")
+                            ++ (text <| getInLanguage lgId "__and__")
                             :: (List.drop (List.length list - 1) list)
                     else
-                        List.intersperse (text " and ") list
+                        List.intersperse (text <| getInLanguage lgId "__and__") list
             in
                 interactables ++ [ text "." ]
 
@@ -43,7 +46,7 @@ view currentLocation props characters =
                 characters
                     |> List.map (interactableView Interact)
                     |> format
-                    |> (::) (text "Characters here: ")
+                    |> (::) (text <| getInLanguage lgId "__Characters_here__")
                     |> p []
             else
                 span [] []
@@ -53,16 +56,17 @@ view currentLocation props characters =
                 props
                     |> List.map (interactableView Interact)
                     |> format
-                    |> (::) (text "Items here: ")
+                    |> (::) (text <| getInLanguage lgId "__Items_here__")
                     |> p []
             else
                 span [] []
     in
         div [ class "CurrentSummary", style [] ] <|
             [ h1 [ class "Current-location" ]
-                [ text <| .name <| getDisplayInfo currentLocation ]
+                [ getSingleLgDisplayInfo lgId currentLocation |> .name |> text
+                ]
             ]
                 ++ if isEmpty then
-                    [ text "Nothing here." ]
+                    [ text <| getInLanguage lgId "__Nothing_here__" ]
                    else
                     [ charactersList, propsList ]

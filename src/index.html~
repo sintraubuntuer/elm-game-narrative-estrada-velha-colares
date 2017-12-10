@@ -26,11 +26,12 @@
 
      elmApp.ports.saveHistoryToStorage.subscribe(function(history) {
         localStorage.setItem('historyStr', JSON.stringify(history));
-       
+        //console.log('got the following info from elm app : ' + history ) ;
     });
 
-      elmApp.ports.sendRequestForStoredHistory.subscribe(function(data) {
-     
+    elmApp.ports.sendRequestForStoredHistory.subscribe(function(data) {
+       //localStorage.setItem('historyStr', JSON.stringify(history));
+       //console.log('received message from elm app and going to send some stored info to the app now : '  ) ;
        var storedState = localStorage.getItem('historyStr');
        var storedHistory = storedState ? JSON.parse(storedState) : ( { "playerName" : "" ,  "lInteractions" : new Array() } ) ;
        elmApp.ports.getHistoryFromStorage.send(storedHistory)

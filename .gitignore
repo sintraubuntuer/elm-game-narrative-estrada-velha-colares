@@ -1,4 +1,10 @@
+InfoForBkendApiRequests.elm
+*~
+compiledjs/
 elm-stuff/
 node_modules/
 tmp/
+img/
 dist/
+sound/
+img/
