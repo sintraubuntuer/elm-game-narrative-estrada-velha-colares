@@ -1,6 +1,13 @@
+# Elm Game Narrative - Misterio da Estrada Velha de Colares
+
+Estrada Velha de Colares and the different names it assumes between Sintra and Colares constitutes a brain cracking mystery that puzzled several brilliant minds throughout the ages ...
+
+Could you be the one that solves the mistery ?  :)
+
+
 # Elm Game Narrative Starter
 
- Elm game/narrative Engine and story starter
+Elm game/narrative Engine and story starter
 adds several extensions to the original Elm Narrative Engine by Jeff Schomay  :
 [elm-interactive-story-starter](https://github.com/jschomay/elm-interactive-story-starter)
 that were implemented by Nuno Torres
