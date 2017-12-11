@@ -483,13 +483,18 @@ preUpdate interactableId extraInfo ((Model story) as model) =
         extraInfoWithPendingChanges : Types.ExtraInfoWithPendingChanges
         extraInfoWithPendingChanges =
             ExtraInfoWithPendingChanges newExtraInfo changes mbQuasiCwCmdWithBk
+
+        -- this isn't necessary , the above allready covers all cases , but just to make it a bit more clear ...
+        extraInfoWithPendingChangesNoBackend : Types.ExtraInfoWithPendingChanges
+        extraInfoWithPendingChangesNoBackend =
+            ExtraInfoWithPendingChanges newExtraInfo changes Nothing
     in
         if (infoNeeded /= NoInfoNeeded && extraInfo.bkAnsStatus == NoInfoYet && extraInfo.mbInputTextForBackend /= Nothing && (extraInfo.mbInputTextForBackend /= Just "")) then
             EnginePreResponse ( model, extraInfoWithPendingChanges, infoNeeded )
         else if (infoNeeded /= NoInfoNeeded && extraInfo.bkAnsStatus == WaitingForInfoRequested) then
-            EnginePreResponse ( model, (ExtraInfoWithPendingChanges newExtraInfo [] mbQuasiCwCmdWithBk), NoInfoNeeded )
+            EnginePreResponse ( model, (ExtraInfoWithPendingChanges extraInfo [] Nothing), NoInfoNeeded )
         else
-            EnginePreResponse ( model, extraInfoWithPendingChanges, NoInfoNeeded )
+            EnginePreResponse ( model, extraInfoWithPendingChangesNoBackend, NoInfoNeeded )
 
 
 completeTheUpdate :

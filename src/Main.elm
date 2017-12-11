@@ -336,6 +336,7 @@ update msg model =
                                         ( newEngineModel_, extraInfoWithPendingChanges_, infoNeeded_ )
 
                                     _ ->
+                                        -- pattern matching needs to deal with all cases but this can't really happen
                                         ( model.engineModel, EngineTypes.ExtraInfoWithPendingChanges interactionExtraInfo [] Nothing, NoInfoNeeded )
 
                             newInteractionExtraInfo =
@@ -353,6 +354,7 @@ update msg model =
                                                     ( newEngineModel2_, lInteractionIncidents_ )
 
                                                 _ ->
+                                                    -- pattern matching needs to deal with all cases but this can't really happen
                                                     ( newEngineModel, [] )
 
                                         interactionIncidents =
@@ -939,6 +941,7 @@ getNewModelAndInteractionExtraInfoByEngineUpdate interactableId extraInfoWithPen
                         ( newEngineModel_, lInteractionIncidents_ )
 
                     _ ->
+                        -- pattern matching needs to deal with all cases but this can't really happen
                         ( model.engineModel, [] )
 
             newInteractionExtraInfo =
