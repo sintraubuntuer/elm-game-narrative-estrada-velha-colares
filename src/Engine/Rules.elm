@@ -1,40 +1,29 @@
-module Engine.Rules
-    exposing
-        ( findMatchingRule
-        , bestMatch
-        , chooseFrom
-        )
+module Engine.Rules exposing
+    ( bestMatch
+    , chooseFrom
+    , findMatchingRule
+    )
 
-import Types exposing (..)
 import Dict exposing (Dict)
 import Engine.Manifest exposing (..)
+import Types exposing (..)
 
 
 findMatchingRule : Story -> Maybe String -> String -> Maybe ( String, Rule )
-findMatchingRule story mbInputText interaction =
+findMatchingRule story mbInputText interactionStr =
     story.rules
         |> Dict.toList
-        |> List.filter (Tuple.second >> matchesRule story mbInputText interaction)
+        |> List.filter (Tuple.second >> matchesRule story mbInputText interactionStr)
         |> List.map
             (\( id, { interaction, conditions, changes, quasiChanges, quasiChangeWithBkend } ) ->
                 { id = id, interaction = interaction, conditions = conditions, changes = changes, quasiChanges = quasiChanges, quasiChangeWithBkend = quasiChangeWithBkend }
             )
         |> bestMatch
-            (numConstrictionsWeight
-                +> sceneConstraintWeight
-                +> specificityWeight
-            )
+            numConstrictionsWeightAndsceneConstraintWeightAndSpecificityWeight
         |> Maybe.map
             (\{ id, interaction, conditions, changes, quasiChanges, quasiChangeWithBkend } ->
                 ( id, { interaction = interaction, conditions = conditions, changes = changes, quasiChanges = quasiChanges, quasiChangeWithBkend = quasiChangeWithBkend } )
             )
-
-
-{-| Feed two functions the same value and add their results. Like a Reader, but adds the results of the functions instead of composing them.
--}
-(+>) : (a -> Int) -> (a -> Int) -> (a -> Int)
-(+>) f1 f2 a =
-    f1 a + f2 a
 
 
 bestMatch : (a -> Int) -> List a -> Maybe a
@@ -42,6 +31,16 @@ bestMatch heuristics matchingRules =
     List.sortBy heuristics matchingRules
         |> List.reverse
         |> List.head
+
+
+numConstrictionsWeightAndsceneConstraintWeight : { a | conditions : List Condition } -> Int
+numConstrictionsWeightAndsceneConstraintWeight rec =
+    numConstrictionsWeight rec + sceneConstraintWeight rec
+
+
+numConstrictionsWeightAndsceneConstraintWeightAndSpecificityWeight : { a | conditions : List Condition, interaction : InteractionMatcher } -> Int
+numConstrictionsWeightAndsceneConstraintWeightAndSpecificityWeight rec =
+    numConstrictionsWeight rec + sceneConstraintWeight rec + specificityWeight rec
 
 
 numConstrictionsWeight : { a | conditions : List Condition } -> Int
@@ -60,10 +59,11 @@ sceneConstraintWeight rule =
                 _ ->
                     False
     in
-        if List.any hasSceneConstraints rule.conditions then
-            300
-        else
-            0
+    if List.any hasSceneConstraints rule.conditions then
+        300
+
+    else
+        0
 
 
 specificityWeight : { a | interaction : InteractionMatcher } -> Int
@@ -98,7 +98,7 @@ specificityWeight rule =
 chooseFrom : Story -> List { a | conditions : List Condition } -> Maybe { a | conditions : List Condition }
 chooseFrom ({ currentLocation, currentScene, manifest, history } as story) =
     List.filter (.conditions >> List.all (matchesCondition story Nothing))
-        >> bestMatch (numConstrictionsWeight +> sceneConstraintWeight)
+        >> bestMatch numConstrictionsWeightAndsceneConstraintWeight
 
 
 matchesRule : Story -> Maybe String -> String -> Rule -> Bool
@@ -127,8 +127,8 @@ matchesInteraction manifest interactionMatcher interactableId =
             isCharacter interactableId manifest
 
         WithAnyLocationAnyCharacterAfterGameEnded ->
-            (isLocation interactableId manifest)
-                || (isCharacter interactableId manifest)
+            isLocation interactableId manifest
+                || isCharacter interactableId manifest
 
         WithAnythingAfterGameEnded ->
             True
@@ -147,8 +147,8 @@ matchesCondition :
     -> Bool
 matchesCondition { history, currentLocation, currentScene, manifest } mbInputText condition =
     case condition of
-        ItemIsInInventory item ->
-            itemIsInInventory item manifest
+        ItemIsInCharacterInventory charId item ->
+            itemIsInCharacterInventory charId item manifest
 
         CharacterIsInLocation character location ->
             characterIsInLocation character location manifest
@@ -159,8 +159,8 @@ matchesCondition { history, currentLocation, currentScene, manifest } mbInputTex
         CurrentLocationIs location ->
             currentLocation == location
 
-        ItemIsNotInInventory item ->
-            not <| itemIsInInventory item manifest
+        ItemIsNotInCharacterInventory charId item ->
+            not <| itemIsInCharacterInventory charId item manifest
 
         CharacterIsNotInLocation character location ->
             not <| characterIsInLocation character location manifest
@@ -171,8 +171,11 @@ matchesCondition { history, currentLocation, currentScene, manifest } mbInputTex
         ItemIsOffScreen item ->
             itemIsOffScreen item manifest
 
-        ItemIsInAnyLocationOrInventory item ->
-            itemIsInAnyLocationOrInventory item manifest
+        ItemIsInAnyLocationOrCharacterInventory charId item ->
+            itemIsInAnyLocationOrCharacterInventory charId item manifest
+
+        ItemIsInAnyLocationOrAnyCharacterInventory item ->
+            itemIsInAnyLocationOrAnyCharacterInventory item manifest
 
         ItemIsCorrectlyAnswered item ->
             itemIsCorrectlyAnswered item manifest

@@ -1,7 +1,20 @@
-module ClientTypes exposing (..)
+module ClientTypes exposing
+    ( AudioFileInfo
+    , EndScreenInfo
+    , LanguageId
+    , LanguageStorySnippets
+    , Msg(..)
+    , SaveHistoryRecord
+    , SettingsModel
+    , StartScreenInfo
+    , StorySnippet
+    , ToSettingsMsg(..)
+    )
 
-import Geolocation
+--import Geolocation
+
 import Dict exposing (Dict)
+import GpsUtils
 import Http
 import Types as EngineTypes exposing (AnswerInfo, InteractionExtraInfo)
 
@@ -17,8 +30,9 @@ type Msg
     | NewUserSubmitedText String
     | ChangeOptionDisplayLanguage String
     | ChangeOptionDontCheckGps Bool
-    | NewCoordsForInterId String (Maybe GpsZone) Bool EngineTypes.InteractionExtraInfo (Result Geolocation.Error Geolocation.Location)
-    | NotInTheZone String (Maybe GpsZone) Geolocation.Location Float
+    | NewCoordsForInterId { interactableId : String, latitude : Float, longitude : Float }
+    | NewCoordsForInterIdFailed String
+    | NotInTheZone String (Maybe GpsUtils.GpsZone) GpsUtils.GeolocationInfo Float
     | CloseAlert
     | ToggleShowExpandedSettings
     | ChangeOptionAudioAutoplay Bool
@@ -26,10 +40,12 @@ type Msg
     | ToggleShowHideSaveLoadBtns
     | SaveHistory
     | RequestForStoredHistory
-    | LoadHistory { playerName : String, lInteractions : List SaveHistoryRecord }
+    | LoadHistory { playerName : String, lInteractions : List SaveHistoryRecord, lPrandomFloats : List Float }
     | ProcessLoadHistory (List ( String, InteractionExtraInfo )) SettingsModel
     | ExitToFinalScreen
     | Loaded
+    | NewRandomElemsAtGameStart (List Float)
+    | FillRandomElemsList (List Float)
 
 
 type alias SaveHistoryRecord =
@@ -51,19 +67,20 @@ type ToSettingsMsg
     | SettingsToggleShowHideSaveLoadBtns
     | SettingsLayoutWithSidebar Bool
     | SettingsShowExitToFinalScreenButton
+    | SettingsHideExitToFinalScreenButton
 
 
 type alias SettingsModel =
     { availableLanguages : Dict String String -- key : LanguageId , val : language as string
     , displayLanguage : String
-    , gpsOptionsEnabled : Bool -- this control wether gpsOptions appear on sidebar and are available to be changed by the user
+    , gpsOptionsEnabled : Bool -- this control whether gpsOptions appear on sidebar and are available to be changed by the user
     , dontNeedToBeInZone : Bool
     , audioOptionsEnabled : Bool
     , audioAutoplay : Bool
     , layoutWithSidebar : Bool
     , showAnswerBoxInSideBar : Bool
     , showExpandedSettings : Bool
-    , saveLoadEnabled : Bool -- this controls wether save/load options appear on sidebar and are available to be changed by the user
+    , saveLoadEnabled : Bool -- this controls whether save/load options appear on sidebar and are available to be changed by the user
     , showSaveLoad : Bool
     , showExitToFinalScreenButton : Bool
     }
@@ -84,6 +101,7 @@ type alias StorySnippet =
     , narrative : String
     , mbAudio : Maybe AudioFileInfo
     , mbSuggestedInteractionId : Maybe String
+    , suggestedInteractionCaption : String
     , mbSuggestedInteractionName : Maybe String
     , isLastInZipper : Bool
     }
@@ -97,14 +115,6 @@ type alias LanguageStorySnippets =
     { interactableName : String
     , interactableCssSelector : String
     , narrativesDict : Dict LanguageId String
-    }
-
-
-type alias GpsZone =
-    { needsToBeIn : Bool
-    , lat : Float
-    , lon : Float
-    , mbRadius : Maybe Float
     }
 
 

@@ -1,14 +1,13 @@
-module Theme.AnswerBox exposing (..)
-
-import Html exposing (..)
-
+module Theme.AnswerBox exposing (Model, init, update, view)
 
 --import Html.Keyed
 
+import ClientTypes exposing (..)
+import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import ClientTypes exposing (..)
 import TranslationHelper exposing (getInLanguage)
+
 
 
 --import Components exposing (..)
@@ -30,6 +29,7 @@ update : String -> Model -> Model
 update theText model =
     if theText == "" then
         { model | answerBoxText = Nothing }
+
     else
         { model | answerBoxText = Just theText }
 
@@ -45,23 +45,24 @@ view answerboxtext lgId showHeaders mbInteractableId mbPlaceHolderText className
                 Just txt ->
                     txt
     in
-        div [ class className ]
-            [ if showHeaders then
-                h3 [] [ text "Text Box" ]
-              else
-                text ""
-            , input
-                [ type_ "text"
-                , placeholder (getInLanguage lgId placeHolderText)
-                , autofocus True
-                , value (Maybe.withDefault "" answerboxtext)
-                , onInput NewUserSubmitedText
-                ]
-                []
-            , case mbInteractableId of
-                Just theId ->
-                    button [ onClick (InteractSendingText theId (Maybe.withDefault "" answerboxtext)) ] [ text "OK" ]
+    div [ class className ]
+        [ if showHeaders then
+            h3 [] [ text "Text Box" ]
 
-                Nothing ->
-                    text ""
+          else
+            text ""
+        , input
+            [ type_ "text"
+            , placeholder (getInLanguage lgId placeHolderText)
+            , autofocus True
+            , value (Maybe.withDefault "" answerboxtext)
+            , onInput NewUserSubmitedText
             ]
+            []
+        , case mbInteractableId of
+            Just theId ->
+                button [ onClick (InteractSendingText theId (Maybe.withDefault "" answerboxtext)) ] [ text "OK" ]
+
+            Nothing ->
+                text ""
+        ]

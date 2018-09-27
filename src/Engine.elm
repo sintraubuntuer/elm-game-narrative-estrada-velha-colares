@@ -1,127 +1,103 @@
-module Engine
-    exposing
-        ( Model
-        , init
-        , update
-        , completeTheUpdate
-        , changeWorld
-        , chooseFrom
-        , getCurrentScene
-        , getCurrentLocation
-        , getChoiceLanguages
-        , getItemsInCurrentLocation
-        , getCharactersInCurrentLocation
-        , getItemsInInventory
-        , getItemWrittenContent
-        , getInteractableAttribute
-        , check_IfAnswerCorrect
-        , simpleCheck_IfAnswerCorrect
-        , simpleCheck_IfAnswerCorrectUsingBackend
-        , checkAndAct_IfChosenOptionIs
-        , check_IfAnswerCorrectUsingBackend
-        , processChosenOptionEqualTo
-        , createCounterIfNotExists
-        , createAttributeIfNotExists
-        , createAttributeIfNotExistsAndOrSetValue
-        , createOrSetAttributeValueFromOtherInterAttr
-        , createAmultiChoice
-        , removeMultiChoiceOptions
-        , setAttributeValue
-        , removeAttributeIfExists
-        , increaseCounter
-        , getLocations
-        , getEndingText
-        , getHistory
-        , getStoryRules
-        , hasFreezingEnd
-        , hasEnded
-        , GeolocationInfo
-        , EndingType
-        , Rules
-        , Rule
-        , Rule_
-        , InteractionMatcher
-        , with
-        , withAnything
-        , withAnyItem
-        , withAnyLocation
-        , withAnyCharacter
-        , withAnyLocationAnyCharacterAfterGameEnded
-        , withAnythingAfterGameEnded
-        , withAnythingHighPriority
-        , Condition
-        , characterIsNotInLocation
-        , characterIsInLocation
-        , currentLocationIs
-        , currentLocationIsNot
-        , itemIsInInventory
-        , itemIsNotInInventory
-        , itemIsNotInLocation
-        , itemIsInLocation
-        , itemIsOffScreen
-        , itemIsInAnyLocationOrInventory
-        , areThereWritableItemsInLocation
-        , itemIsCorrectlyAnswered
-          -- this returns a condition
-        , isItemCorrectlyAnswered
-          -- this returns a bool
-        , itemIsNotCorrectlyAnswered
-        , isWritable
-        , hasPreviouslyInteractedWith
-        , hasNotPreviouslyInteractedWith
-        , currentSceneIs
-        , counterExists
-        , counterLessThen
-        , counterGreaterThenOrEqualTo
-        , attrValueIsEqualTo
-        , attrBValueIsEqualTo
-        , chosenOptionIsEqualTo
-        , noChosenOptionYet
-        , choiceHasAlreadyBeenMade
-        , ChangeWorldCommand
-          --, QuasiChangeWorldCommand
-          --, QuasiChangeWorldCommandWithBackendInfo
-        , EngUpdateMsg(..)
-        , EngUpdateResponse(..)
-        , addLocation
-        , endStory
-        , loadScene
-        , moveCharacterToLocation
-        , moveCharacterOffScreen
-        , moveItemToLocation
-        , moveItemToLocationFixed
-        , moveItemOffScreen
-        , moveItemToInventory
-        , makeItemWritable
-        , makeItemUnwritable
-        , writeTextToItem
-        , write_InputTextToItem
-        , writeForceTextToItemFromGivenItemAttr
-        , write_GpsInfoToItem
-        , clearWrittenText
-        , moveTo
-        , removeLocation
-        , checkAnswerData
-        , checkBkendAnswerData
-        , checkOptionData
-        , addChoiceLanguage
-        , astring
-        , aliststring
-        , aliststringstring
-        , anint
-        , abool
-        , aDictStringString
-        , aDictStringLSS
-        , completeTheRule
-        , caseSensitiveAnswer
-        , caseInsensitiveAnswer
-        , answerSpacesMatter
-        , answerSpacesDontMatter
-        , headerAnswerAndCorrectIncorrect
-        , noFeedback
-        , noQuasiChange
-        , noQuasiChangeWithBackend
-        )
+module Engine exposing
+    ( Model
+    , init, changeWorld, chooseFrom
+    , getCurrentScene, getCurrentLocation, getItemsInCurrentLocation, getCharactersInCurrentLocation, getItemsInInventory, getLocations, getEndingText
+    , Rule, Rules, update
+    , InteractionMatcher, with, withAnything, withAnyItem, withAnyLocation, withAnyCharacter
+    , Condition, characterIsInLocation, itemIsInLocation, currentLocationIs, hasPreviouslyInteractedWith, hasNotPreviouslyInteractedWith, currentSceneIs, characterIsNotInLocation, itemIsNotInLocation, currentLocationIsNot
+    , ChangeWorldCommand, moveTo, addLocation, removeLocation, moveCharacterToLocation, moveCharacterOffScreen, moveItemToLocation, moveItemToLocationFixed, moveItemOffScreen, loadScene, endStory
+    ,  EndingType
+      , EngUpdateMsg(..)
+      , EngUpdateResponse(..)
+      , QuasiChangeWorldCommand
+      , Rule_
+      , aDictStringLSS
+      , aDictStringListString
+      , aDictStringString
+      , abool
+      , addChoiceLanguage
+      , addToRandomElemsList
+      , aliststring
+      , aliststringstring
+      , anint
+      , answerSpacesDontMatter
+      , answerSpacesMatter
+      , areThereWritableItemsInLocation
+      , astring
+      , attrBValueIsEqualTo
+      , attrValueIsEqualTo
+      , caseInsensitiveAnswer
+      , caseSensitiveAnswer
+      , checkAndAct_IfChosenOptionIs
+      , checkAnswerData
+      , checkBkendAnswerData
+      , checkOptionData
+      , check_IfAnswerCorrect
+      , check_IfAnswerCorrectUsingBackend
+      , choiceHasAlreadyBeenMade
+      , chosenOptionIsEqualTo
+      , clearWrittenText
+      , completeTheRule
+      , completeTheUpdate
+      , counterExists
+      , counterGreaterThenOrEqualTo
+      , counterLessThen
+      , createAmultiChoice
+      , createAttributeIfNotExists
+      , createAttributeIfNotExistsAndOrSetValue
+      , createCounterIfNotExists
+      , createOrSetAttributeValueFromOtherInterAttr
+      , execute_CustomFunc
+      , execute_CustomFuncUsingRandomElems
+      , getChoiceLanguages
+      , getHistory
+      , getInteractableAttribute
+      , getItemWrittenContent
+      , getItemsInCharacterInventory
+      , getRandomElemsListSize
+      , getStoryRules
+      , hasEnded
+      , hasFreezingEnd
+      , headerAnswerAndCorrectIncorrect
+      , increaseCounter
+      , isItemCorrectlyAnswered
+        -- this returns a bool
+      , isWritable
+      , itemIsCorrectlyAnswered
+        -- this returns a condition
+      , itemIsInAnyLocationOrAnyCharacterInventory
+      , itemIsInAnyLocationOrCharacterInventory
+      , itemIsInCharacterInventory
+      , itemIsNotCorrectlyAnswered
+      , itemIsNotInCharacterInventory
+      , itemIsOffScreen
+      , listOfAnswersAndFunctions
+      , makeItemUnwritable
+      , makeItemWritable
+      , matchAnyNonEmptyString
+      , matchStringValue
+      , moveItemToCharacterInventory
+      , noChosenOptionYet
+      , noFeedback
+      , noQuasiChange
+      , noQuasiChangeWithBackend
+        --, processChosenOptionEqualTo
+      , removeAttributeIfExists
+      , removeMultiChoiceOptions
+      , resetOption
+      , setAttributeValue
+      , setRandomFloatElems
+      , simpleCheck_IfAnswerCorrect
+      , simpleCheck_IfAnswerCorrectUsingBackend
+      , withAnyLocationAnyCharacterAfterGameEnded
+      , withAnythingAfterGameEnded
+      , withAnythingHighPriority
+      , writeForceTextToItemFromGivenItemAttr
+      , writeTextToItem
+      , write_GpsInfoToItem
+      , write_InputTextToItem
+
+    )
 
 {-| The story engine handles storing and advancing the state of the "world model" by running through your story rules on each interaction and updating the world model appropriately. It is designed to be embedded in your own Elm app, allowing for maximum flexibility and customization.
 
@@ -190,7 +166,7 @@ The following interaction matchers can be used in the `interaction` part of the 
 
 The following condition matchers can be used in the `conditions` part of the rule record.
 
-@docs Condition, itemIsInInventory , characterIsInLocation , itemIsInLocation , currentLocationIs, itemIsNotInInventory , hasPreviouslyInteractedWith, hasNotPreviouslyInteractedWith, currentSceneIs, characterIsNotInLocation , itemIsNotInLocation , currentLocationIsNot
+@docs Condition, itemIsInInventory, characterIsInLocation, itemIsInLocation, currentLocationIs, itemIsNotInInventory, hasPreviouslyInteractedWith, hasNotPreviouslyInteractedWith, currentSceneIs, characterIsNotInLocation, itemIsNotInLocation, currentLocationIsNot
 
 
 ### Changing the story world
@@ -201,14 +177,14 @@ You cannot change the story directly, but you can supply "commands" describing h
 
 -}
 
-import Types exposing (..)
+{- This is code from the Elm Narrative Engine https://github.com/jschomay/elm-narrative-engine/tree/3.0.0 To which i added/modified some parts to convert it to a Game-Narrative Engine
+   so that players are able to answer questions , options , etc ...
+-}
+
+import Dict exposing (Dict)
 import Engine.Manifest exposing (..)
 import Engine.Rules exposing (..)
-import Dict exposing (Dict)
-
-
-type alias GeolocationInfo =
-    Types.GeolocationInfo
+import Types exposing (..)
 
 
 type alias EndingType =
@@ -227,23 +203,50 @@ and the rules that govern the story.
 You will most likely want to call `changeWorld` immediately after `init` to setup your initial story state (the current scene, location, and any initial placements of items or characters and known locations).
 -}
 init :
-    { items : List String
-    , locations : List String
-    , characters : List String
+    { items : List ( String, Dict String Types.AttrTypes )
+    , locations : List ( String, Dict String Types.AttrTypes )
+    , characters : List ( String, Dict String Types.AttrTypes )
     }
+    -> String
     -> Dict.Dict String String
     -> Rules
+    -> List Float
     -> Model
-init manifest llanguages rules =
+init itemsCharactersLocationsRecord playerId llanguages rules lprandom_floats =
     Model
         { history = []
-        , manifest = Engine.Manifest.init manifest
+        , manifest = Engine.Manifest.init itemsCharactersLocationsRecord
+        , playerId = playerId
         , rules = rules
         , currentScene = ""
         , currentLocation = ""
         , choiceLanguages = llanguages
+        , lprandomfloats = lprandom_floats
         , theEnd = Nothing
         }
+
+
+setRandomFloatElems : List Float -> Model -> Model
+setRandomFloatElems lfloats (Model story) =
+    let
+        newStory =
+            { story | lprandomfloats = lfloats }
+    in
+    Model newStory
+
+
+addToRandomElemsList : List Float -> Model -> Model
+addToRandomElemsList lfloats (Model story) =
+    let
+        newStory =
+            { story | lprandomfloats = List.append story.lprandomfloats lfloats }
+    in
+    Model newStory
+
+
+getRandomElemsListSize : Model -> Int
+getRandomElemsListSize (Model story) =
+    List.length story.lprandomfloats
 
 
 {-| This gets the current scene to display
@@ -274,8 +277,9 @@ getItemsInCurrentLocation (Model story) =
 
 areThereWritableItemsInLocation : Model -> Bool
 areThereWritableItemsInLocation (Model story) =
-    if (Engine.Manifest.countWritableItemsInLocation story.currentLocation story.manifest > 0) then
+    if Engine.Manifest.countWritableItemsInLocation story.currentLocation story.manifest > 0 then
         True
+
     else
         False
 
@@ -289,9 +293,14 @@ getCharactersInCurrentLocation (Model story) =
 
 {-| Get a list of the items in your inventory to display
 -}
+getItemsInCharacterInventory : String -> Model -> List String
+getItemsInCharacterInventory charId (Model story) =
+    Engine.Manifest.getItemsInCharacterInventory charId story.manifest
+
+
 getItemsInInventory : Model -> List String
 getItemsInInventory (Model story) =
-    Engine.Manifest.getItemsInInventory story.manifest
+    Engine.Manifest.getItemsInCharacterInventory story.playerId story.manifest
 
 
 getItemWrittenContent : String -> Model -> Maybe String
@@ -303,7 +312,7 @@ getItemWrittenContent id (Model story) =
         mbinteractable =
             Dict.get id theManifest
     in
-        Engine.Manifest.getItemWrittenContent mbinteractable
+    Engine.Manifest.getItemWrittenContent mbinteractable
 
 
 getInteractableAttribute : String -> String -> Model -> Maybe AttrTypes
@@ -403,16 +412,14 @@ update msg ((Model story) as model) =
             completeTheUpdate interactableId extraInfoWithPendingChanges model
 
 
-
-{-
+{-|
 
     This will also return the id of the matching rule (if there was one)
     included in the EnginePreResponse  Types.ExtraInfoWithPendingChanges
-   Normally the client would look up some associated narrative by this id to display, though it could respond in any other way as well.
+
+Normally the client would look up some associated narrative by this id to display, though it could respond in any other way as well.
 
 -}
-
-
 preUpdate :
     String
     -> Types.InteractionExtraInfo
@@ -424,8 +431,10 @@ preUpdate interactableId extraInfo ((Model story) as model) =
         defaultChanges =
             if Engine.Manifest.isLocation interactableId story.manifest then
                 [ MoveTo interactableId ]
+
             else if Engine.Manifest.isItem interactableId story.manifest then
-                [ MoveItemToInventory interactableId ]
+                [ MoveItemToCharacterInventory story.playerId interactableId ]
+
             else
                 []
 
@@ -469,12 +478,20 @@ preUpdate interactableId extraInfo ((Model story) as model) =
                     NoInfoNeeded
 
                 Just quasicwcmd ->
-                    getInfoNeeded quasicwcmd
+                    determineIfInfoNeeded quasicwcmd
 
-        changesFromQuasi : List ChangeWorldCommand
-        changesFromQuasi =
-            lquasicwcmds
-                |> List.map (replaceQuasiCwCmdsWithCwcommands extraInfo)
+        --changesFromQuasi : ( List ChangeWorldCommand, List Float )
+        ( changesFromQuasi, newLfloats ) =
+            --lquasicwcmds
+            --|> List.map (replaceQuasiCwCmdsWithCwcommands extraInfo story.lprandomfloats)
+            List.foldl
+                (\qcwcmd tupAcc ->
+                    replaceQuasiCwCmdsWithCwcommands extraInfo (Tuple.second tupAcc) qcwcmd
+                        --|> concatResultTo tupAcc
+                        |> (\( cwcmd, lf ) -> ( List.append (Tuple.first tupAcc) [ cwcmd ], lf ))
+                )
+                ( [], story.lprandomfloats )
+                lquasicwcmds
 
         changes : List ChangeWorldCommand
         changes =
@@ -488,13 +505,18 @@ preUpdate interactableId extraInfo ((Model story) as model) =
         extraInfoWithPendingChangesNoBackend : Types.ExtraInfoWithPendingChanges
         extraInfoWithPendingChangesNoBackend =
             ExtraInfoWithPendingChanges newExtraInfo changes Nothing
+
+        newModel =
+            Model { story | lprandomfloats = newLfloats }
     in
-        if (infoNeeded /= NoInfoNeeded && extraInfo.bkAnsStatus == NoInfoYet && extraInfo.mbInputTextForBackend /= Nothing && (extraInfo.mbInputTextForBackend /= Just "")) then
-            EnginePreResponse ( model, extraInfoWithPendingChanges, infoNeeded )
-        else if (infoNeeded /= NoInfoNeeded && extraInfo.bkAnsStatus == WaitingForInfoRequested) then
-            EnginePreResponse ( model, (ExtraInfoWithPendingChanges extraInfo [] Nothing), NoInfoNeeded )
-        else
-            EnginePreResponse ( model, extraInfoWithPendingChangesNoBackend, NoInfoNeeded )
+    if infoNeeded /= NoInfoNeeded && extraInfo.bkAnsStatus == NoInfoYet && extraInfo.mbInputTextForBackend /= Nothing && (extraInfo.mbInputTextForBackend /= Just "") then
+        EnginePreResponse ( newModel, extraInfoWithPendingChanges, infoNeeded )
+
+    else if infoNeeded /= NoInfoNeeded && extraInfo.bkAnsStatus == WaitingForInfoRequested then
+        EnginePreResponse ( newModel, ExtraInfoWithPendingChanges extraInfo [] Nothing, NoInfoNeeded )
+
+    else
+        EnginePreResponse ( newModel, extraInfoWithPendingChangesNoBackend, NoInfoNeeded )
 
 
 completeTheUpdate :
@@ -520,24 +542,20 @@ completeTheUpdate interactableId extraInfoWithPendingChanges ((Model story) as m
                     chg :: extraInfoWithPendingChanges.pendingChanges
 
         addHistory : Model -> Model
-        addHistory (Model story) =
-            Model <| { story | history = story.history ++ [ ( interactableId, extraInfo ) ] }
+        addHistory (Model storyrec) =
+            Model <| { storyrec | history = storyrec.history ++ [ ( interactableId, extraInfo ) ] }
 
         ( newModel, lincidents ) =
             changeWorld allChanges model
     in
-        EngineUpdateCompleteResponse
-            ( newModel |> addHistory
-            , lincidents
-            )
+    EngineUpdateCompleteResponse
+        ( newModel |> addHistory
+        , lincidents
+        )
 
 
-
---
-
-
-getInfoNeeded : QuasiChangeWorldCommandWithBackendInfo -> MoreInfoNeeded
-getInfoNeeded qcwcommand =
+determineIfInfoNeeded : QuasiChangeWorldCommandWithBackendInfo -> MoreInfoNeeded
+determineIfInfoNeeded qcwcommand =
     case qcwcommand of
         Check_IfAnswerCorrectUsingBackend strUrl cAnsdata id ->
             AnswerInfoToQuestionNeeded strUrl
@@ -556,23 +574,34 @@ replaceBkendQuasiCwCmdsWithCwcommands extraInfo quasiBkendCwCommand =
             replaceCheckIfAnswerCorrectUsingBackend extraInfo.bkAnsStatus strUrl cAnswerData interactableId
 
 
-replaceQuasiCwCmdsWithCwcommands : Types.InteractionExtraInfo -> QuasiChangeWorldCommand -> ChangeWorldCommand
-replaceQuasiCwCmdsWithCwcommands extraInfo quasiCwCommand =
+replaceQuasiCwCmdsWithCwcommands : Types.InteractionExtraInfo -> List Float -> QuasiChangeWorldCommand -> ( ChangeWorldCommand, List Float )
+replaceQuasiCwCmdsWithCwcommands extraInfo lfloats quasiCwCommand =
     case quasiCwCommand of
         NoQuasiChange ->
-            NoChange
+            ( NoChange, lfloats )
 
         Check_IfAnswerCorrect theCorrectAnswers cAnswerData interactableId ->
-            replaceCheckIfAnswerCorrect extraInfo.mbInputText theCorrectAnswers cAnswerData interactableId
+            ( replaceCheckIfAnswerCorrect extraInfo.mbInputText theCorrectAnswers cAnswerData interactableId, lfloats )
 
-        CheckAndAct_IfChosenOptionIs cOptionData itemid ->
-            replaceCheckAndActIfChosenOptionIs extraInfo.mbInputText cOptionData itemid
+        CheckAndAct_IfChosenOptionIs lcOptionData itemid ->
+            ( replaceCheckAndActIfChosenOptionIs extraInfo.mbInputText lcOptionData itemid, lfloats )
 
         Write_InputTextToItem interactableId ->
-            replaceWriteInputTextToItem extraInfo.mbInputText interactableId
+            ( replaceWriteInputTextToItem extraInfo.mbInputText interactableId, lfloats )
 
         Write_GpsInfoToItem interactableId ->
-            replaceWriteGpsInfoToItem extraInfo.geolocationInfoText interactableId
+            ( replaceWriteGpsInfoToItem extraInfo.geolocationInfoText interactableId, lfloats )
+
+        Execute_CustomFunc func interactableId ->
+            ( replaceExecuteCustumFunc func extraInfo interactableId, lfloats )
+
+        Execute_CustomFuncUsingRandomElems nrRandomElems func interactableId ->
+            ( ExecuteCustomFuncUsingRandomElems func extraInfo (List.take nrRandomElems lfloats) interactableId, List.drop nrRandomElems lfloats )
+
+
+replaceExecuteCustumFunc : (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> InteractionExtraInfo -> String -> ChangeWorldCommand
+replaceExecuteCustumFunc func extraInfo interactableId =
+    ExecuteCustomFunc func extraInfo interactableId
 
 
 replaceCheckIfAnswerCorrectUsingBackend : BackendAnswerStatus -> String -> CheckBkendAnswerData -> String -> ChangeWorldCommand
@@ -588,43 +617,45 @@ replaceCheckIfAnswerCorrectUsingBackend bkendAnsStatus strUrl cAnswerData intera
 
         Ans answerinfo ->
             let
-                checkAnswerData =
-                    (CheckAnswerData
+                checkAnswerDataRec =
+                    CheckAnswerData
                         cAnswerData.mbMaxNrTries
                         CaseInsensitiveAnswer
                         AnswerSpacesDontMatter
                         cAnswerData.answerFeedback
-                        (Dict.fromList <| List.map (\x -> ( x.lgId, x.text )) answerinfo.successTextList)
-                        (Dict.fromList <| List.map (\x -> ( x.lgId, x.text )) answerinfo.insuccessTextList)
+                        (Dict.fromList <| List.map (\x -> ( x.lgId, SimpleText [ x.text ] )) answerinfo.successTextList)
+                        (Dict.fromList <| List.map (\x -> ( x.lgId, SimpleText [ x.text ] )) answerinfo.insuccessTextList)
                         cAnswerData.lnewAttrs
                         cAnswerData.lotherInterAttrs
-                    )
 
                 newCheckAnswerDataIfSuccess =
-                    { checkAnswerData | lnewAttrs = cAnswerData.lnewAttrs ++ [ ( "bonusText", ADictStringString (List.map (\x -> ( x.lgId, x.text )) answerinfo.secretTextList |> Dict.fromList) ) ] }
+                    { checkAnswerDataRec | lnewAttrs = cAnswerData.lnewAttrs ++ [ ( "bonusText", ADictStringListString (List.map (\x -> ( x.lgId, [ x.text ] )) answerinfo.secretTextList |> Dict.fromList) ) ] }
 
                 newCheckAnswerDataIfInsuccess =
-                    checkAnswerData
+                    checkAnswerDataRec
             in
-                if (answerinfo.maxTriesReached) then
-                    WriteTextToItem
-                        ("  \n"
-                            ++ " "
-                            ++ " ___MAX_TRIES_ON_BACKEND___ "
-                            ++ " ,  "
-                            ++ "  \n , "
-                            ++ " ___YOUR_ANSWER___ "
-                            ++ " "
-                            ++ (answerinfo.playerAnswer)
-                        )
-                        interactableId
-                else if (answerinfo.answered && answerinfo.correctAnswer) then
-                    CheckIfAnswerCorrect ([ answerinfo.playerAnswer ]) (answerinfo.playerAnswer) newCheckAnswerDataIfSuccess interactableId
-                else if (answerinfo.answered && answerinfo.incorrectAnswer) then
-                    CheckIfAnswerCorrect ([ answerinfo.playerAnswer ++ "something" ]) answerinfo.playerAnswer newCheckAnswerDataIfInsuccess interactableId
-                else
-                    -- ( not answerinfo.answered )
-                    NoChange
+            if answerinfo.maxTriesReached then
+                WriteTextToItem
+                    ("  \n"
+                        ++ " "
+                        ++ " ___MAX_TRIES_ON_BACKEND___ "
+                        ++ " ,  "
+                        ++ "  \n , "
+                        ++ " ___YOUR_ANSWER___ "
+                        ++ " "
+                        ++ answerinfo.playerAnswer
+                    )
+                    interactableId
+
+            else if answerinfo.answered && answerinfo.correctAnswer then
+                CheckIfAnswerCorrect (ListOfAnswersAndFunctions [ answerinfo.playerAnswer ] []) answerinfo.playerAnswer newCheckAnswerDataIfSuccess interactableId
+
+            else if answerinfo.answered && answerinfo.incorrectAnswer then
+                CheckIfAnswerCorrect (ListOfAnswersAndFunctions [ answerinfo.playerAnswer ++ "something" ] []) answerinfo.playerAnswer newCheckAnswerDataIfInsuccess interactableId
+
+            else
+                -- ( not answerinfo.answered )
+                NoChange
 
         CommunicationFailure ->
             WriteTextToItem
@@ -632,28 +663,29 @@ replaceCheckIfAnswerCorrectUsingBackend bkendAnsStatus strUrl cAnswerData intera
                 interactableId
 
 
-replaceCheckIfAnswerCorrect : Maybe String -> List String -> CheckAnswerData -> String -> ChangeWorldCommand
-replaceCheckIfAnswerCorrect mbInputText theCorrectAnswers cAnswerData interactableId =
-    if (mbInputText /= Nothing && mbInputText /= (Just "")) then
+replaceCheckIfAnswerCorrect : Maybe String -> QuestionAnswer -> CheckAnswerData -> String -> ChangeWorldCommand
+replaceCheckIfAnswerCorrect mbInputText questionAns cAnswerData interactableId =
+    if mbInputText /= Nothing && mbInputText /= Just "" then
         let
             playerAnswer =
                 Maybe.withDefault "" mbInputText
         in
-            CheckIfAnswerCorrect theCorrectAnswers playerAnswer cAnswerData interactableId
+        CheckIfAnswerCorrect questionAns playerAnswer cAnswerData interactableId
+
     else
         NoChange
 
 
-replaceCheckAndActIfChosenOptionIs : Maybe String -> CheckOptionData -> String -> ChangeWorldCommand
-replaceCheckAndActIfChosenOptionIs mbInputText cOptionData itemid =
+replaceCheckAndActIfChosenOptionIs : Maybe String -> List CheckOptionData -> String -> ChangeWorldCommand
+replaceCheckAndActIfChosenOptionIs mbInputText lcOptionData itemid =
     let
         playerChoice =
             Maybe.withDefault "" mbInputText
     in
-        CheckAndActIfChosenOptionIs playerChoice cOptionData itemid
+    CheckAndActIfChosenOptionIs playerChoice lcOptionData itemid
 
 
-{-| used to replace the Write_TextToItem QuasiChangeWorldCommand coming from the configuration rules file
+{-| used to replace the Write\_TextToItem QuasiChangeWorldCommand coming from the configuration rules file
 and substitute with WriteInputTextToItem by adding the
 extra parameter Maybe InputText ( text typed by the user ) it got from Main.elm
 -}
@@ -662,7 +694,7 @@ replaceWriteInputTextToItem mbText id =
     WriteTextToItem (Maybe.withDefault "" mbText) id
 
 
-{-| used to replace the Write_GpsInfo QuasiChangeWorldCommand coming from the configuration rules file
+{-| used to replace the Write\_GpsInfo QuasiChangeWorldCommand coming from the configuration rules file
 and substitute with WriteGpsLocInfoToItem by adding the
 extra parameter Maybe GeolocationInfo it got from Main.elm
 -}
@@ -684,33 +716,36 @@ changeWorld :
     -> ( Model, List String )
 changeWorld changes (Model story) =
     let
-        doChange change ( story, linteractionIncidents ) =
+        doChange change ( storyRecord, linteractionIncidents ) =
             case change of
                 MoveTo location ->
-                    ( { story | currentLocation = location }, linteractionIncidents )
+                    ( { storyRecord | currentLocation = location }, linteractionIncidents )
 
                 LoadScene sceneName ->
-                    ( { story | currentScene = sceneName }, linteractionIncidents )
+                    ( { storyRecord | currentScene = sceneName }, linteractionIncidents )
 
                 EndStory endingtype ending ->
-                    ( { story | theEnd = Just (TheEnd endingtype ending) }, linteractionIncidents )
+                    ( { storyRecord | theEnd = Just (TheEnd endingtype ending) }, linteractionIncidents )
 
                 SetChoiceLanguages dictLgs ->
-                    ( { story | choiceLanguages = dictLgs }, linteractionIncidents )
+                    ( { storyRecord | choiceLanguages = dictLgs }, linteractionIncidents )
 
                 AddChoiceLanguage lgId lgName ->
                     -- used to allow the increase of available languages during the narrative
-                    ( { story | choiceLanguages = Dict.insert lgId lgName story.choiceLanguages }, linteractionIncidents )
+                    ( { storyRecord | choiceLanguages = Dict.insert lgId lgName storyRecord.choiceLanguages }, linteractionIncidents )
 
                 _ ->
                     let
                         ( newManifest, newIncidents ) =
-                            Engine.Manifest.update change ( story.manifest, linteractionIncidents )
+                            Engine.Manifest.update change ( storyRecord.manifest, linteractionIncidents )
                     in
-                        ( { story | manifest = newManifest }, newIncidents )
+                    ( { storyRecord | manifest = newManifest }, newIncidents )
+
+        --_ =
+        --    Debug.log "after Engine Update the number of elements of prandomfloats is : " (List.length story.lprandomfloats)
     in
-        List.foldr (\chg y -> doChange chg y) ( story, [] ) changes
-            |> (\( x, y ) -> ( Model x, y ))
+    List.foldr (\chg y -> doChange chg y) ( story, [] ) changes
+        |> (\( x, y ) -> ( Model x, y ))
 
 
 {-| Given a list of choices, this will return only the choice that matches the associated conditions, if any. Useful for conditional descriptions, for example, where an item has a different description depending on where it is.
@@ -815,16 +850,16 @@ type alias Condition =
 
 {-| Will only match if the supplied item is in the inventory.
 -}
-itemIsInInventory : String -> Condition
-itemIsInInventory =
-    ItemIsInInventory
+itemIsInCharacterInventory : String -> String -> Condition
+itemIsInCharacterInventory =
+    ItemIsInCharacterInventory
 
 
-{-| Will only match if the supplied item is *not* in the inventory.
+{-| Will only match if the supplied item is _not_ in the inventory.
 -}
-itemIsNotInInventory : String -> Condition
-itemIsNotInInventory =
-    ItemIsNotInInventory
+itemIsNotInCharacterInventory : String -> String -> Condition
+itemIsNotInCharacterInventory =
+    ItemIsNotInCharacterInventory
 
 
 {-| Will only match if the supplied character is in the supplied location.
@@ -851,7 +886,7 @@ hasNotPreviouslyInteractedWith =
     HasNotPreviouslyInteractedWith
 
 
-{-| Will only match if the supplied character is *not* in the supplied location.
+{-| Will only match if the supplied character is _not_ in the supplied location.
 
 The first String is a character id, the second is a location id.
 
@@ -871,7 +906,7 @@ itemIsInLocation =
     ItemIsInLocation
 
 
-{-| Will only match if the supplied item is *not* in the supplied location.
+{-| Will only match if the supplied item is _not_ in the supplied location.
 
 The first String is a item id, the second is a location id.
 
@@ -889,13 +924,18 @@ itemIsOffScreen =
     ItemIsOffScreen
 
 
-{-| Will only match if the supplied item is in any location , in Inventory
-, ( or is not an interactable or an item)
+{-| Will only match if the supplied item is in any location , or in the given character Inventory
+,
 The arg String is a item id
 -}
-itemIsInAnyLocationOrInventory : String -> Condition
-itemIsInAnyLocationOrInventory =
-    ItemIsInAnyLocationOrInventory
+itemIsInAnyLocationOrCharacterInventory : String -> String -> Condition
+itemIsInAnyLocationOrCharacterInventory =
+    ItemIsInAnyLocationOrCharacterInventory
+
+
+itemIsInAnyLocationOrAnyCharacterInventory : String -> Condition
+itemIsInAnyLocationOrAnyCharacterInventory =
+    ItemIsInAnyLocationOrAnyCharacterInventory
 
 
 {-| Will only match if a given question was answered correctly
@@ -927,14 +967,14 @@ currentLocationIs =
     CurrentLocationIs
 
 
-{-| Will only match when the supplied location is *not* the current location.
+{-| Will only match when the supplied location is _not_ the current location.
 -}
 currentLocationIsNot : String -> Condition
 currentLocationIsNot =
     CurrentLocationIsNot
 
 
-{-| Will only match when the supplied location is *not* the current location.
+{-| Will only match when the supplied location is _not_ the current location.
 -}
 currentSceneIs : String -> Condition
 currentSceneIs =
@@ -1023,11 +1063,11 @@ removeLocation =
     RemoveLocation
 
 
-{-| Adds an item to your inventory (if it was previously in a location, it will be removed from there, as items can only be in one place at once). If the item is "fixed" this will not move it (if you want to "unfix" an item, use `moveItemOffScreen` or `MoveItemToLocation` first).
+{-| Adds an item to the specified character inventory (if it was previously in a location, it will be removed from there, as items can only be in one place at once). If the item is "fixed" this will not move it (if you want to "unfix" an item, use `moveItemOffScreen` or `MoveItemToLocation` first).
 -}
-moveItemToInventory : String -> ChangeWorldCommand
-moveItemToInventory =
-    MoveItemToInventory
+moveItemToCharacterInventory : String -> String -> ChangeWorldCommand
+moveItemToCharacterInventory =
+    MoveItemToCharacterInventory
 
 
 {-| Makes an item writable by 'setting' its IsWritable to True
@@ -1079,14 +1119,14 @@ after it is replaced by CheckIfAnswerCorrect it will be processed by the respect
 Checks if player answer is
 contained in given list string = allowed right answers ( first arg )
 -}
-check_IfAnswerCorrect : List String -> CheckAnswerData -> String -> QuasiChangeWorldCommand
+check_IfAnswerCorrect : QuestionAnswer -> CheckAnswerData -> String -> QuasiChangeWorldCommand
 check_IfAnswerCorrect =
     Check_IfAnswerCorrect
 
 
-simpleCheck_IfAnswerCorrect : List String -> Maybe Int -> String -> QuasiChangeWorldCommand
-simpleCheck_IfAnswerCorrect lcorrectAnswers mbNrTries interactableId =
-    Check_IfAnswerCorrect lcorrectAnswers (CheckAnswerData mbNrTries CaseInsensitiveAnswer AnswerSpacesDontMatter HeaderAnswerAndCorrectIncorrect Dict.empty Dict.empty [] []) interactableId
+simpleCheck_IfAnswerCorrect : QuestionAnswer -> Maybe Int -> String -> QuasiChangeWorldCommand
+simpleCheck_IfAnswerCorrect lcorrectAnswersAndFuncs mbNrTries interactableId =
+    Check_IfAnswerCorrect lcorrectAnswersAndFuncs (CheckAnswerData mbNrTries CaseInsensitiveAnswer AnswerSpacesDontMatter HeaderAnswerAndCorrectIncorrect Dict.empty Dict.empty [] []) interactableId
 
 
 check_IfAnswerCorrectUsingBackend : String -> CheckBkendAnswerData -> String -> QuasiChangeWorldCommandWithBackendInfo
@@ -1099,17 +1139,23 @@ simpleCheck_IfAnswerCorrectUsingBackend strUrl mbNrTries interactableId =
     Check_IfAnswerCorrectUsingBackend strUrl (CheckBkendAnswerData mbNrTries HeaderAnswerAndCorrectIncorrect [] []) interactableId
 
 
-checkAndAct_IfChosenOptionIs : CheckOptionData -> String -> QuasiChangeWorldCommand
+checkAndAct_IfChosenOptionIs : List CheckOptionData -> String -> QuasiChangeWorldCommand
 checkAndAct_IfChosenOptionIs =
     CheckAndAct_IfChosenOptionIs
 
 
-processChosenOptionEqualTo : CheckOptionData -> String -> ChangeWorldCommand
-processChosenOptionEqualTo =
-    ProcessChosenOptionEqualTo
+
+--processChosenOptionEqualTo : CheckOptionData -> String -> ChangeWorldCommand
+--processChosenOptionEqualTo =
+--    ProcessChosenOptionEqualTo
 
 
-{-| creates an attribute with name ("counter_" ++ Id) with Id passed as first arg , in interactable with Id : String second arg
+resetOption : String -> ChangeWorldCommand
+resetOption =
+    ResetOption
+
+
+{-| creates an attribute with name ("counter\_" ++ Id) with Id passed as first arg , in interactable with Id : String second arg
 -}
 createCounterIfNotExists : String -> String -> ChangeWorldCommand
 createCounterIfNotExists =
@@ -1125,34 +1171,12 @@ increaseCounter =
 
 createAttributeIfNotExists : AttrTypes -> String -> String -> ChangeWorldCommand
 createAttributeIfNotExists val attrId interactableId =
-    let
-        reservedAttrIds =
-            Engine.Manifest.getReservedAttrIds
-    in
-        if (not (List.member attrId reservedAttrIds)) then
-            CreateAttributeIfNotExists val attrId interactableId
-        else
-            let
-                _ =
-                    Debug.log "Sorry ! It was not possible to create attribute. That's a 'reserved' attributeId : " attrId
-            in
-                NoChange
+    CreateAttributeIfNotExists val attrId Nothing interactableId
 
 
 createAttributeIfNotExistsAndOrSetValue : AttrTypes -> String -> String -> ChangeWorldCommand
 createAttributeIfNotExistsAndOrSetValue val attrId interactableId =
-    let
-        reservedAttrIds =
-            Engine.Manifest.getReservedAttrIds
-    in
-        if (not (List.member attrId reservedAttrIds)) then
-            CreateAttributeIfNotExistsAndOrSetValue val attrId interactableId
-        else
-            let
-                _ =
-                    Debug.log "Sorry ! It was not possible to create or set attribute. That's a 'reserved' attributeId : " attrId
-            in
-                NoChange
+    CreateAttributeIfNotExistsAndOrSetValue val attrId Nothing interactableId
 
 
 createOrSetAttributeValueFromOtherInterAttr : String -> String -> String -> String -> ChangeWorldCommand
@@ -1162,23 +1186,22 @@ createOrSetAttributeValueFromOtherInterAttr =
 
 setAttributeValue : AttrTypes -> String -> String -> ChangeWorldCommand
 setAttributeValue val attrId interactableId =
-    let
-        reservedAttrIds =
-            Engine.Manifest.getReservedAttrIds
-    in
-        if (not (List.member attrId reservedAttrIds)) then
-            CreateAttributeIfNotExistsAndOrSetValue val attrId interactableId
-        else
-            let
-                _ =
-                    Debug.log "Sorry ! It was not possible to set attribute value . That's a 'reserved' attributeId : " attrId
-            in
-                NoChange
+    CreateAttributeIfNotExistsAndOrSetValue val attrId Nothing interactableId
 
 
 removeAttributeIfExists : String -> String -> ChangeWorldCommand
 removeAttributeIfExists =
     RemoveAttributeIfExists
+
+
+execute_CustomFunc : (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> ID -> QuasiChangeWorldCommand
+execute_CustomFunc =
+    Execute_CustomFunc
+
+
+execute_CustomFuncUsingRandomElems : Int -> (InteractionExtraInfo -> List Float -> Manifest -> List ChangeWorldCommand) -> ID -> QuasiChangeWorldCommand
+execute_CustomFuncUsingRandomElems =
+    Execute_CustomFuncUsingRandomElems
 
 
 {-| Adds a character to a location, or moves a character to a different location (characters can only be in one location at a time, or off-screen). (Use moveTo to move yourself between locations.)
@@ -1235,7 +1258,7 @@ addChoiceLanguage =
     AddChoiceLanguage
 
 
-checkAnswerData : Maybe Int -> AnswerCase -> AnswerSpaces -> AnswerFeedback -> Dict String String -> Dict String String -> List ( String, AttrTypes ) -> List ( String, String, AttrTypes ) -> CheckAnswerData
+checkAnswerData : Maybe Int -> AnswerCase -> AnswerSpaces -> AnswerFeedback -> Dict String FeedbackText -> Dict String FeedbackText -> List ( String, AttrTypes ) -> List ( String, String, AttrTypes ) -> CheckAnswerData
 checkAnswerData =
     CheckAnswerData
 
@@ -1245,9 +1268,19 @@ checkBkendAnswerData =
     CheckBkendAnswerData
 
 
-checkOptionData : String -> Dict String String -> List ( String, AttrTypes ) -> List ( String, String, AttrTypes ) -> CheckOptionData
+checkOptionData : ChoiceMatches -> Dict String FeedbackText -> List ( String, AttrTypes ) -> List ( String, String, AttrTypes ) -> List ChangeWorldCommand -> CheckOptionData
 checkOptionData =
     CheckOptionData
+
+
+matchStringValue : String -> ChoiceMatches
+matchStringValue =
+    MatchStringValue
+
+
+matchAnyNonEmptyString : ChoiceMatches
+matchAnyNonEmptyString =
+    MatchAnyNonEmptyString
 
 
 astring : String -> AttrTypes
@@ -1280,9 +1313,19 @@ aDictStringString =
     ADictStringString
 
 
+aDictStringListString : Dict String (List String) -> AttrTypes
+aDictStringListString =
+    ADictStringListString
+
+
 aDictStringLSS : Dict String (List ( String, String )) -> AttrTypes
 aDictStringLSS =
     ADictStringLSS
+
+
+listOfAnswersAndFunctions : List String -> List (String -> Manifest -> Bool) -> QuestionAnswer
+listOfAnswersAndFunctions =
+    Types.ListOfAnswersAndFunctions
 
 
 completeTheRule : Rule_ -> Rule
@@ -1342,8 +1385,9 @@ loadScene =
 -}
 endStory : String -> String -> ChangeWorldCommand
 endStory endingtypeStr ending =
-    if (endingtypeStr == "notFreezingEnd") then
+    if endingtypeStr == "notFreezingEnd" then
         EndStory NotFreezingEnd ending
+
     else
         EndStory FreezingEnd ending
 

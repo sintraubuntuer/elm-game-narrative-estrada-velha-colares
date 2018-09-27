@@ -1,4 +1,4 @@
-module TypesUpdateHelper exposing (..)
+module TypesUpdateHelper exposing (updateNestedBkAnsStatus, updateNestedMbInputTextBk)
 
 import Types
 
@@ -15,7 +15,7 @@ updateNestedMbInputTextBk extraInfoWithPendingChanges mbInputTextForBackend =
         newExtraInfoWithPendingChanges =
             { extraInfoWithPendingChanges | interactionExtraInfo = newinteractionExtraInfo }
     in
-        newExtraInfoWithPendingChanges
+    newExtraInfoWithPendingChanges
 
 
 updateNestedBkAnsStatus : Types.ExtraInfoWithPendingChanges -> Types.BackendAnswerStatus -> Types.ExtraInfoWithPendingChanges
@@ -30,4 +30,4 @@ updateNestedBkAnsStatus extraInfoWithPendingChanges bkAnsStatus =
         newExtraInfoWithPendingChanges =
             { extraInfoWithPendingChanges | interactionExtraInfo = newInteractionExtraInfo }
     in
-        newExtraInfoWithPendingChanges
+    newExtraInfoWithPendingChanges

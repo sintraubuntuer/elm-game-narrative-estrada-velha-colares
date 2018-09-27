@@ -1,8 +1,53 @@
-module Components exposing (..)
+module Components exposing
+    ( AudioFileInfo
+    , Component(..)
+    , Components
+    , Entity
+    , Exits
+    , addAllLanguagesAudio
+    , addClassName
+    , addComponent
+    , addConnectingLocations
+    , addDisplayInfo
+    , addLanguageNarratives
+    , addLgAudioContent
+    , addLgDisplayInfo
+    , addNarrative
+    , addNeedsGpsInfo
+    , addNeedsToBeInGpsZone
+    , addRuleData
+    , entity
+    , getClassName
+    , getDictLgDescriptions
+    , getDictLgNames
+    , getDictLgNamesAndCoords
+    , getDisplayInfo
+    , getEntityCoords
+    , getExits
+    , getLanguageNarrative
+    , getLanguagesAudioDict
+    , getLanguagesNarrativeDict
+    , getLgsDisplayInfo
+    , getMbSingleLgAudioContent
+    , getNarrative
+    , getNeedsGpsCoords
+    , getNeedsToBeInGpsZone
+    , getRuleData
+    , getSingleLgDisplayInfo
+    , getTheLgsDisplayInfo
+    , makeZipNarrativesDict
+    , mergeDicts
+    , updateAllLgsDisplayName
+    )
 
-import Engine
 import Dict exposing (..)
-import List.Zipper as Zipper exposing (Zipper)
+import Engine
+import GpsUtils
+import List.Zipper as ListZipper exposing (Zipper)
+
+
+
+{- This is code from the Elm Interactive Story Satrter https://github.com/jschomay/elm-interactive-story-starter/tree/master/src To which i added/modified some parts to convert it to a Game-Narrative Engine -}
 
 
 {-| An entity is simply an id associated with some potential components and their data.
@@ -33,18 +78,7 @@ type Component
 
 
 type alias Exits =
-    List ( Direction, String )
-
-
-type Direction
-    = North
-    | NorthEast
-    | NorthWest
-    | South
-    | SouthEast
-    | SouthWest
-    | East
-    | West
+    List ( GpsUtils.Direction, String )
 
 
 type alias AudioFileInfo =
@@ -71,7 +105,6 @@ addComponent componentId component ( id, components ) =
 
 addDisplayInfo : String -> String -> Entity -> Entity
 addDisplayInfo name description ( id, components ) =
-    --addComponent "displayInfo" <| DisplayInformation { name = name, description = description }
     addLgDisplayInfo "en" name description ( id, components )
 
 
@@ -86,7 +119,7 @@ addLgDisplayInfo lgId name description ( id, components ) =
                 _ ->
                     Dict.insert lgId { name = name, description = description } Dict.empty
     in
-        addComponent "displayInfo" (DisplayInformation newDict) ( id, components )
+    addComponent "displayInfo" (DisplayInformation newDict) ( id, components )
 
 
 
@@ -104,7 +137,7 @@ updateAllLgsDisplayName newNameStr ( id, components ) =
                 _ ->
                     Dict.empty
     in
-        addComponent "displayInfo" (DisplayInformation newDict) ( id, components )
+    addComponent "displayInfo" (DisplayInformation newDict) ( id, components )
 
 
 addAllLanguagesAudio : Dict String AudioFileInfo -> Entity -> Entity
@@ -123,7 +156,7 @@ addLgAudioContent lgId audioName audioFileName mbAbsUrl ( id, components ) =
                 _ ->
                     Dict.insert lgId (AudioFileInfo audioName audioFileName mbAbsUrl) Dict.empty
     in
-        addComponent "audioContent" (AudioContent newDict) ( id, components )
+    addComponent "audioContent" (AudioContent newDict) ( id, components )
 
 
 getMbSingleLgAudioContent : String -> Entity -> Maybe AudioFileInfo
@@ -140,7 +173,7 @@ getMbSingleLgAudioContent lgId ( id, components ) =
                 _ ->
                     Dict.empty
     in
-        Dict.get lgId audioDict
+    Dict.get lgId audioDict
 
 
 getLanguagesAudioDict : Entity -> Dict String AudioFileInfo
@@ -164,7 +197,7 @@ addClassName className =
 {-| This allows you to specify which locations are adjacent to the current location, and in what direction. If you use this component, the view will show adjacent locations regardless of what locations have been added via the `addLocation` change world command from the Engine.
 You can change the Directions as needed.
 -}
-addConnectingLocations : List ( Direction, String ) -> Entity -> Entity
+addConnectingLocations : List ( GpsUtils.Direction, String ) -> Entity -> Entity
 addConnectingLocations exits =
     addComponent "connectedLocations" <| ConnectingLocations exits
 
@@ -174,12 +207,12 @@ The narrative that you add to a rule will be shown when that rule matches. If yo
 -}
 addNarrative : List String -> Entity -> Entity
 addNarrative narrative =
-    addComponent "narrative" <| Narrative <| Zipper.withDefault "" <| Zipper.fromList narrative
+    addComponent "narrative" <| Narrative <| ListZipper.withDefault "" <| ListZipper.fromList narrative
 
 
 zipTheStringList : List String -> Zipper String
 zipTheStringList narrative =
-    Zipper.withDefault "" <| Zipper.fromList narrative
+    ListZipper.withDefault "" <| ListZipper.fromList narrative
 
 
 makeZipNarrativesDict : Dict String (List String) -> Dict String (Zipper String)
@@ -209,7 +242,7 @@ addNeedsGpsInfo bval =
 
 addNeedsToBeInGpsZone : Bool -> Float -> Float -> Maybe Float -> Entity -> Entity
 addNeedsToBeInGpsZone bval dlat dlon mbRadius =
-    addComponent "needsToBeInGpsZone" <| (NeedsToBeInGpsZone bval dlat dlon mbRadius)
+    addComponent "needsToBeInGpsZone" <| NeedsToBeInGpsZone bval dlat dlon mbRadius
 
 
 
@@ -232,8 +265,8 @@ getSingleLgDisplayInfo lgId ( id, components ) =
         theDict =
             getLgsDisplayInfo [ lgId ] ( id, components )
     in
-        Dict.get lgId theDict
-            |> Maybe.withDefault { name = "No Info", description = "No Info" }
+    Dict.get lgId theDict
+        |> Maybe.withDefault { name = "No Info", description = "No Info" }
 
 
 
@@ -262,20 +295,20 @@ getTheLgsDisplayInfo ldesiredlanguageIds priorDict ( id, components ) =
 
         fillIt : String -> Dict String { name : String, description : String } -> Dict String { name : String, description : String }
         fillIt key dict =
-            case (Dict.get key dict) of
+            case Dict.get key dict of
                 Just val ->
                     dict
 
                 Nothing ->
-                    case (Dict.get "en" dict) of
+                    case Dict.get "en" dict of
                         Nothing ->
                             Dict.insert key { name = id, description = id } dict
 
                         Just englishVal ->
                             Dict.insert key englishVal dict
     in
-        -- try to fill values for keys not yet in dictionary
-        List.foldl (\key dict -> fillIt key dict) mergedDict ldesiredlanguageIds
+    -- try to fill values for keys not yet in dictionary
+    List.foldl (\key dict -> fillIt key dict) mergedDict ldesiredlanguageIds
 
 
 
@@ -293,18 +326,18 @@ getDictLgNames ldesiredlanguageIds ( id, components ) =
         dict =
             getLgsDisplayInfo ldesiredlanguageIds ( id, components )
     in
-        Dict.map (\key val -> val.name) dict
+    Dict.map (\key val -> val.name) dict
 
 
 getDictLgNamesAndCoords : List String -> Entity -> Dict String ( String, Float, Float )
 getDictLgNamesAndCoords ldesiredlanguageIds ( id, components ) =
-    case (Dict.get "needsToBeInGpsZone" components) of
+    case Dict.get "needsToBeInGpsZone" components of
         Just (NeedsToBeInGpsZone bval dlat dlon mbRadius) ->
             let
                 dict =
                     getLgsDisplayInfo ldesiredlanguageIds ( id, components )
             in
-                Dict.map (\key val -> ( val.name, dlat, dlon )) dict
+            Dict.map (\key val -> ( val.name, dlat, dlon )) dict
 
         _ ->
             Dict.empty
@@ -312,7 +345,7 @@ getDictLgNamesAndCoords ldesiredlanguageIds ( id, components ) =
 
 getEntityCoords : Entity -> Maybe ( Float, Float )
 getEntityCoords ( id, components ) =
-    case (Dict.get "needsToBeInGpsZone" components) of
+    case Dict.get "needsToBeInGpsZone" components of
         Just (NeedsToBeInGpsZone bval dlat dlon mbRadius) ->
             Just ( dlat, dlon )
 
@@ -326,29 +359,12 @@ getDictLgDescriptions ldesiredlanguageIds ( id, components ) =
         dict =
             getLgsDisplayInfo ldesiredlanguageIds ( id, components )
     in
-        Dict.map (\key val -> val.description) dict
-
-
-
-{-
-   getWrittenContent : Entity -> Maybe String
-   getWrittenContent ( id, components ) =
-       case Dict.get "writtenContent" components of
-           Just ( WrittenContent mbtext ) ->
-               mbtext
-           _ ->
-               Nothing
-
-
-   getDescriptionInfoAndWrittenContent : Entity -> String
-   getDescriptionInfoAndWrittenContent ( id, components ) =
-       (getDisplayInfo ( id, components )).description ++ ( Maybe.withDefault "" (getWrittenContent (id , components)) )
--}
+    Dict.map (\key val -> val.description) dict
 
 
 getNeedsGpsCoords : Entity -> Bool
 getNeedsGpsCoords ( id, components ) =
-    case (Dict.get "needsGpsCoords" components) of
+    case Dict.get "needsGpsCoords" components of
         Just (NeedsGpsCoords True) ->
             True
 
@@ -358,7 +374,7 @@ getNeedsGpsCoords ( id, components ) =
 
 getNeedsToBeInGpsZone : Entity -> Maybe { needsToBeIn : Bool, lat : Float, lon : Float, mbRadius : Maybe Float }
 getNeedsToBeInGpsZone ( id, components ) =
-    case (Dict.get "needsToBeInGpsZone" components) of
+    case Dict.get "needsToBeInGpsZone" components of
         Just (NeedsToBeInGpsZone bval dlat dlon mbRadius) ->
             Just { needsToBeIn = bval, lat = dlat, lon = dlon, mbRadius = mbRadius }
 
@@ -393,22 +409,22 @@ getNarrative ( id, components ) =
             narrative
 
         _ ->
-            Zipper.singleton id
+            ListZipper.singleton id
 
 
 getLanguageNarrative : String -> Entity -> Zipper String
 getLanguageNarrative languageId ( id, components ) =
     case Dict.get "languageNarratives" components of
         Just (LanguageNarratives narrativesDict) ->
-            case (Dict.get languageId narrativesDict) of
+            case Dict.get languageId narrativesDict of
                 Just narrative ->
                     narrative
 
                 _ ->
-                    Zipper.singleton id
+                    ListZipper.singleton id
 
         _ ->
-            Zipper.singleton id
+            ListZipper.singleton id
 
 
 getLanguagesNarrativeDict : Entity -> Dict String (Zipper String)
@@ -436,26 +452,6 @@ getRuleData ( id, components ) =
             }
 
 
-bearingToDirection : Float -> Direction
-bearingToDirection angle =
-    if (angle >= 22.5 && angle < 67.5) then
-        NorthEast
-    else if (angle >= 67.5 && angle < 112.5) then
-        East
-    else if (angle >= 112.5 && angle < 157.5) then
-        SouthEast
-    else if (angle >= 157.5 && angle < 202.5) then
-        South
-    else if (angle >= 202.5 && angle < 247.5) then
-        SouthWest
-    else if (angle >= 247.5 && angle < 292.5) then
-        West
-    else if (angle >= 292.5 && angle < 337.5) then
-        NorthWest
-    else
-        North
-
-
 mergeDicts : Dict comparable v -> Dict comparable v -> Dict comparable v
 mergeDicts dict1 dict2 =
     let
@@ -466,7 +462,8 @@ mergeDicts dict1 dict2 =
         mergeRule tup dict =
             if Dict.get (Tuple.first tup) dict == Nothing then
                 Dict.insert (Tuple.first tup) (Tuple.second tup) dict
+
             else
                 dict
     in
-        List.foldl (\tup dict -> mergeRule tup dict) dict2 ltups
+    List.foldl (\tup dict -> mergeRule tup dict) dict2 ltups

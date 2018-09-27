@@ -1,132 +1,121 @@
-module Engine.Manifest
-    exposing
-        ( init
-        , character
-        , characterIsInLocation
-        , getCharactersInLocation
-        , getItemsInLocation
-        , getItemsInLocationIncludeWrittenContent
-        , getItemsInInventory
-        , getItemsInInventoryIncludeWrittenContent
-        , getItemWrittenContent
-        , getInteractableAttribute
-        , countWritableItemsInLocation
-        , getLocations
-        , isCharacter
-        , isItem
-        , isLocation
-        , item
-        , itemIsInInventory
-        , itemIsInLocation
-        , itemIsNotInLocation
-        , itemIsOffScreen
-        , itemIsInAnyLocationOrInventory
-        , itemIsCorrectlyAnswered
-        , itemIsNotCorrectlyAnswered
-        , itemIsIncorrectlyAnswered
-        , itemIsNotAnswered
-        , isWritable
-        , location
-        , counterExists
-        , counterLessThen
-        , counterGreaterThenOrEqualTo
-        , attrValueIsEqualTo
-        , chosenOptionIsEqualTo
-        , noChosenOptionYet
-        , choiceHasAlreadyBeenMade
-        , getReservedAttrIds
-        , update
-        )
+module Engine.Manifest exposing
+    ( attrValueIsEqualTo
+    , character
+    , characterIsInLocation
+    , choiceHasAlreadyBeenMade
+    , chosenOptionIsEqualTo
+    , countWritableItemsInLocation
+    , counterExists
+    , counterGreaterThenOrEqualTo
+    , counterLessThen
+    , getAttributeByIdAndInteractableId
+    , getCharactersInLocation
+    , getInteractableAttribute
+    , getItemWrittenContent
+    , getItemsInCharacterInventory
+    , getItemsInLocation
+    , getItemsInLocationIncludeWrittenContent
+    , getLocations
+    , getReservedAttrIds
+    , init
+    , isCharacter
+    , isItem
+    , isLocation
+    , isWritable
+    , item
+    , itemIsCorrectlyAnswered
+    , itemIsInAnyLocationOrAnyCharacterInventory
+    , itemIsInAnyLocationOrCharacterInventory
+    , itemIsInCharacterInventory
+    , itemIsInLocation
+    , itemIsIncorrectlyAnswered
+    , itemIsNotAnswered
+    , itemIsNotCorrectlyAnswered
+    , itemIsNotInLocation
+    , itemIsOffScreen
+    , location
+    , noChosenOptionYet
+    , update
+    )
 
-import Types exposing (..)
 import Dict exposing (Dict)
 import Regex
+import Types exposing (..)
+
+
+
+{- This is code from the Elm Narrative Engine https://github.com/jschomay/elm-narrative-engine/tree/3.0.0 To which i added/modified some parts to convert it to a Game-Narrative Engine
+   so that players are able to answer questions , options , etc ...
+-}
 
 
 init :
-    { items : List String
-    , locations : List String
-    , characters : List String
+    { items : List ( String, Dict String Types.AttrTypes )
+    , locations : List ( String, Dict String Types.AttrTypes )
+    , characters : List ( String, Dict String Types.AttrTypes )
     }
     -> Manifest
 init { items, locations, characters } =
     let
-        insertFn interactableConstructor id acc =
-            Dict.insert id (interactableConstructor id) acc
+        insertInterFn interactableConstructor ( interId, interInfo ) acc =
+            Dict.insert interId (interactableConstructor ( interId, interInfo )) acc
 
-        foldFn interactableConstructor interactableList acc =
-            List.foldr (insertFn interactableConstructor) acc interactableList
+        foldInterFn interactableConstructor interactableList acc =
+            List.foldr (\( interId, interInfo ) -> insertInterFn interactableConstructor ( interId, interInfo )) acc interactableList
     in
-        Dict.empty
-            |> foldFn item items
-            |> foldFn location locations
-            |> foldFn character characters
+    Dict.empty
+        |> foldInterFn item items
+        |> foldInterFn location locations
+        |> foldInterFn character characters
 
 
-item : String -> Interactable
-item itemId =
+item : ( String, Dict String Types.AttrTypes ) -> Interactable
+item ( itemId, dictItemInfo ) =
     let
         --ItemData  interactableId fixed  itemPlacement  isWritable  writtenContent  attributes  interactionErrors interactionWarnings
         itemData =
-            ItemData itemId False ItemOffScreen False Nothing Dict.empty [] []
+            ItemData itemId False ItemOffScreen False Nothing dictItemInfo [] [] []
     in
-        Item itemData
+    Item itemData
 
 
-location : String -> Interactable
-location locationId =
+location : ( String, Dict String Types.AttrTypes ) -> Interactable
+location ( locationId, dictLocationInfo ) =
     let
         --  LocationData interactableId  shown    attributes  interactionErrors interactionWarnings
         locationData =
-            LocationData locationId False Dict.empty [] []
+            LocationData locationId False dictLocationInfo [] [] []
     in
-        Location locationData
+    Location locationData
 
 
-character : String -> Interactable
-character caharacterId =
+character : ( String, Dict String Types.AttrTypes ) -> Interactable
+character ( characterId, dictCharacterInfo ) =
     let
         --  CharacterData  interactableId  characterPlacement  attributes   interactionErrors  interactionWarnings
         characterData =
-            CharacterData caharacterId CharacterOffScreen Dict.empty [] []
+            CharacterData characterId CharacterOffScreen dictCharacterInfo [] [] []
     in
-        Character characterData
+    Character characterData
 
 
-getItemsInInventory : Manifest -> List String
-getItemsInInventory manifest =
+getItemsInCharacterInventory : String -> Manifest -> List String
+getItemsInCharacterInventory charId manifest =
     let
         isInInventory ( id, interactable ) =
             case interactable of
                 Item idata ->
-                    if (idata.itemPlacement == ItemInInventory) then
+                    if idata.itemPlacement == ItemInCharacterInventory charId then
                         Just id
+
                     else
                         Nothing
 
                 _ ->
                     Nothing
     in
-        Dict.toList manifest
-            |> List.filterMap isInInventory
-
-
-getItemsInInventoryIncludeWrittenContent : Manifest -> List ( String, Maybe String )
-getItemsInInventoryIncludeWrittenContent manifest =
-    let
-        isInInventory ( id, interactable ) =
-            case interactable of
-                Item idata ->
-                    if (idata.itemPlacement == ItemInInventory) then
-                        Just ( id, idata.writtenContent )
-                    else
-                        Nothing
-
-                _ ->
-                    Nothing
-    in
-        Dict.toList manifest
-            |> List.filterMap isInInventory
+    Dict.toList manifest
+        |> List.filterMap isInInventory
 
 
 getLocations : Manifest -> List String
@@ -137,14 +126,15 @@ getLocations manifest =
                 Location locData ->
                     if locData.shown then
                         Just id
+
                     else
                         Nothing
 
                 _ ->
                     Nothing
     in
-        Dict.toList manifest
-            |> List.filterMap isShownLocation
+    Dict.toList manifest
+        |> List.filterMap isShownLocation
 
 
 getCharactersInLocation : String -> Manifest -> List String
@@ -154,9 +144,10 @@ getCharactersInLocation locationId manifest =
             case interactable of
                 Character cdata ->
                     case cdata.characterPlacement of
-                        CharacterInLocation location ->
-                            if location == locId then
+                        CharacterInLocation alocation ->
+                            if alocation == locId then
                                 Just id
+
                             else
                                 Nothing
 
@@ -166,20 +157,21 @@ getCharactersInLocation locationId manifest =
                 _ ->
                     Nothing
     in
-        Dict.toList manifest
-            |> List.filterMap (isInLocation locationId)
+    Dict.toList manifest
+        |> List.filterMap (isInLocation locationId)
 
 
 getItemsInLocation : String -> Manifest -> List String
 getItemsInLocation locationId manifest =
     let
-        isInLocation locationId ( id, interactable ) =
+        isInLocation locationIdArg ( id, interactable ) =
             case interactable of
                 Item idata ->
                     case idata.itemPlacement of
                         ItemInLocation locId ->
-                            if (locId == locationId) then
+                            if locId == locationIdArg then
                                 Just id
+
                             else
                                 Nothing
 
@@ -189,20 +181,21 @@ getItemsInLocation locationId manifest =
                 _ ->
                     Nothing
     in
-        Dict.toList manifest
-            |> List.filterMap (isInLocation locationId)
+    Dict.toList manifest
+        |> List.filterMap (isInLocation locationId)
 
 
 countWritableItemsInLocation : String -> Manifest -> Int
 countWritableItemsInLocation locationId manifest =
     let
-        isInLocationAndWritable locationId ( id, interactable ) =
+        isInLocationAndWritable locationIdArg ( id, interactable ) =
             case interactable of
                 Item idata ->
                     case idata.itemPlacement of
                         ItemInLocation locId ->
-                            if (locId == locationId && idata.isWritable) then
+                            if locId == locationIdArg && idata.isWritable then
                                 Just id
+
                             else
                                 Nothing
 
@@ -212,33 +205,35 @@ countWritableItemsInLocation locationId manifest =
                 _ ->
                     Nothing
     in
-        Dict.toList manifest
-            |> List.filterMap (isInLocationAndWritable locationId)
-            |> List.length
+    Dict.toList manifest
+        |> List.filterMap (isInLocationAndWritable locationId)
+        |> List.length
 
 
 isWritable : String -> Manifest -> Bool
 isWritable interactableId manifest =
     Dict.get interactableId manifest
-        |> \mbinteractable ->
-            case mbinteractable of
-                Just (Item idata) ->
-                    idata.isWritable
+        |> (\mbinteractable ->
+                case mbinteractable of
+                    Just (Item idata) ->
+                        idata.isWritable
 
-                _ ->
-                    False
+                    _ ->
+                        False
+           )
 
 
 getItemsInLocationIncludeWrittenContent : String -> Manifest -> List ( String, Maybe String )
 getItemsInLocationIncludeWrittenContent locationId manifest =
     let
-        isInLocation locationId ( id, interactable ) =
+        isInLocation locationIdArg ( id, interactable ) =
             case interactable of
                 Item idata ->
                     case idata.itemPlacement of
                         ItemInLocation locId ->
-                            if (locId == locationId) then
+                            if locId == locationIdArg then
                                 Just ( id, idata.writtenContent )
+
                             else
                                 Nothing
 
@@ -248,65 +243,69 @@ getItemsInLocationIncludeWrittenContent locationId manifest =
                 _ ->
                     Nothing
     in
-        Dict.toList manifest
-            |> List.filterMap (isInLocation locationId)
+    Dict.toList manifest
+        |> List.filterMap (isInLocation locationId)
 
 
 isItem : String -> Manifest -> Bool
 isItem id manifest =
     Dict.get id manifest
-        |> \interactable ->
-            case interactable of
-                Just (Item idata) ->
-                    True
+        |> (\interactable ->
+                case interactable of
+                    Just (Item idata) ->
+                        True
 
-                _ ->
-                    False
+                    _ ->
+                        False
+           )
 
 
 isLocation : String -> Manifest -> Bool
 isLocation id manifest =
     Dict.get id manifest
-        |> \interactable ->
-            case interactable of
-                Just (Location _) ->
-                    True
+        |> (\interactable ->
+                case interactable of
+                    Just (Location _) ->
+                        True
 
-                _ ->
-                    False
+                    _ ->
+                        False
+           )
 
 
 isCharacter : String -> Manifest -> Bool
 isCharacter id manifest =
     Dict.get id manifest
-        |> \interactable ->
-            case interactable of
-                Just (Character cdata) ->
-                    True
+        |> (\interactable ->
+                case interactable of
+                    Just (Character cdata) ->
+                        True
 
-                _ ->
-                    False
+                    _ ->
+                        False
+           )
 
 
 noChosenOptionYet : String -> Manifest -> Bool
 noChosenOptionYet interactableId manifest =
     Dict.get interactableId manifest
-        |> \interactable ->
-            case interactable of
-                Just (Item idata) ->
-                    if
-                        (Dict.get "answerOptionsList" idata.attributes
-                            /= Nothing
-                            && Dict.get "chosenOption" idata.attributes
-                            == Nothing
-                        )
-                    then
-                        True
-                    else
-                        False
+        |> (\interactable ->
+                case interactable of
+                    Just (Item idata) ->
+                        if
+                            Dict.get "answerOptionsList" idata.attributes
+                                /= Nothing
+                                && Dict.get "chosenOption" idata.attributes
+                                == Nothing
+                        then
+                            True
 
-                _ ->
-                    False
+                        else
+                            False
+
+                    _ ->
+                        False
+           )
 
 
 choiceHasAlreadyBeenMade : String -> Manifest -> Bool
@@ -316,15 +315,16 @@ choiceHasAlreadyBeenMade interactableId manifest =
 
 chosenOptionIsEqualTo : String -> Maybe String -> Bool
 chosenOptionIsEqualTo valueToMatch mbInputText =
-    if (Just valueToMatch == mbInputText) then
+    if Just valueToMatch == mbInputText then
         True
+
     else
         False
 
 
 checkForNonExistantInteractableId : String -> Manifest -> List String -> List String
 checkForNonExistantInteractableId interactableId manifest linteractionincidents =
-    case (Dict.get interactableId manifest) of
+    case Dict.get interactableId manifest of
         Nothing ->
             List.append linteractionincidents [ "Interactable with InteractableId : " ++ interactableId ++ " doesn't exist !" ]
 
@@ -334,7 +334,7 @@ checkForNonExistantInteractableId interactableId manifest linteractionincidents 
 
 checkForNonExistantLocationId : String -> Manifest -> List String -> List String
 checkForNonExistantLocationId locationId manifest linteractionincidents =
-    case (Dict.get locationId manifest) of
+    case Dict.get locationId manifest of
         Nothing ->
             List.append linteractionincidents [ "Problem on interaction with Location . LocationId : " ++ locationId ++ " doesn't exist !" ]
 
@@ -350,17 +350,17 @@ manifestUpdate interactbaleId updateFuncMbToMb ( manifest, linteractionincidents
 
         newInteractionIncidents =
             linteractionincidents
-                |> checkForNonExistantInteractableId interactbaleId manifest
+                |> checkForNonExistantInteractableId interactbaleId newManifest
 
         -- add the interactionErrors and the interactionWarnings info from the interactable
         incidentswithInterErrors =
-            getInteractionErrors interactbaleId manifest
-                |> List.map (\x -> ("Interaction Error : " ++ x))
+            getInteractionErrors interactbaleId newManifest
+                |> List.map (\x -> "Interaction Error : " ++ x)
                 |> List.append newInteractionIncidents
 
         incidentswithInterErrorsAndWarnings =
-            getInteractionWarnings interactbaleId manifest
-                |> List.map (\x -> ("Interaction Warning : " ++ x))
+            getInteractionWarnings interactbaleId newManifest
+                |> List.map (\x -> "Interaction Warning : " ++ x)
                 |> List.append incidentswithInterErrors
 
         -- clear the interactionErrors and interactionWarnings on the interactable
@@ -369,7 +369,7 @@ manifestUpdate interactbaleId updateFuncMbToMb ( manifest, linteractionincidents
                 |> Dict.update interactbaleId (clearInteractionIncidents "warning")
                 |> Dict.update interactbaleId (clearInteractionIncidents "error")
     in
-        ( newManifestUpdated, incidentswithInterErrorsAndWarnings )
+    ( newManifestUpdated, incidentswithInterErrorsAndWarnings )
 
 
 manifestUpdateWithLocCheck : String -> String -> (Maybe Interactable -> Maybe Interactable) -> ( Manifest, List String ) -> ( Manifest, List String )
@@ -380,18 +380,18 @@ manifestUpdateWithLocCheck interactbaleId locationId updateFuncMbToMb ( manifest
 
         newInteractionIncidents =
             linteractionincidents
-                |> checkForNonExistantInteractableId interactbaleId manifest
-                |> checkForNonExistantLocationId locationId manifest
+                |> checkForNonExistantInteractableId interactbaleId newManifest
+                |> checkForNonExistantLocationId locationId newManifest
 
         -- add the interactionErrors and the interactionWarnings info from the interactable
         incidentswithInterErrors =
-            getInteractionErrors interactbaleId manifest
-                |> List.map (\x -> ("Interaction Error : " ++ x))
+            getInteractionErrors interactbaleId newManifest
+                |> List.map (\x -> "Interaction Error on lock check : " ++ x)
                 |> List.append newInteractionIncidents
 
         incidentswithInterErrorsAndWarnings =
-            getInteractionWarnings interactbaleId manifest
-                |> List.map (\x -> ("Interaction Warning : " ++ x))
+            getInteractionWarnings interactbaleId newManifest
+                |> List.map (\x -> "Interaction Warning on lock check : " ++ x)
                 |> List.append incidentswithInterErrors
 
         -- clear the interactionErrors and interactionWarnings on the interactable
@@ -400,7 +400,7 @@ manifestUpdateWithLocCheck interactbaleId locationId updateFuncMbToMb ( manifest
                 |> Dict.update interactbaleId (clearInteractionIncidents "warning")
                 |> Dict.update interactbaleId (clearInteractionIncidents "error")
     in
-        ( newManifestUpdated, incidentswithInterErrorsAndWarnings )
+    ( newManifestUpdated, incidentswithInterErrorsAndWarnings )
 
 
 update : ChangeWorldCommand -> ( Manifest, List String ) -> ( Manifest, List String )
@@ -418,8 +418,8 @@ update change ( manifest, linteractionincidents ) =
         RemoveLocation id ->
             manifestUpdate id removeLocation ( manifest, linteractionincidents )
 
-        MoveItemToInventory id ->
-            manifestUpdate id moveItemToInventory ( manifest, linteractionincidents )
+        MoveItemToCharacterInventory charId id ->
+            manifestUpdate id (moveItemToCharacterInventory charId manifest) ( manifest, linteractionincidents )
 
         MoveItemToLocation itemId locationId ->
             manifestUpdate itemId (moveItemToLocation locationId) ( manifest, linteractionincidents )
@@ -446,24 +446,27 @@ update change ( manifest, linteractionincidents ) =
             manifestUpdate id (writeGpsLocInfoToItem theInfoStr) ( manifest, linteractionincidents )
 
         ClearWrittenText id ->
-            manifestUpdate id (clearWrittenText) ( manifest, linteractionincidents )
+            manifestUpdate id clearWrittenText ( manifest, linteractionincidents )
 
         CheckIfAnswerCorrect theText playerAnswer cAnswerData interactableId ->
-            manifestUpdate interactableId (checkIfAnswerCorrect theText playerAnswer cAnswerData) ( manifest, linteractionincidents )
+            manifestUpdate interactableId (checkIfAnswerCorrect theText playerAnswer cAnswerData manifest) ( manifest, linteractionincidents )
                 |> processCreateOrSetOtherInteractableAttributesIfAnswerCorrect cAnswerData.lotherInterAttrs interactableId
 
-        CheckAndActIfChosenOptionIs playerChoice cOptionData interactableId ->
-            manifestUpdate interactableId (checkAndActIfChosenOptionIs playerChoice cOptionData) ( manifest, linteractionincidents )
-                |> processCreateOrSetOtherInteractableAttributesIfChosenOptionIs playerChoice cOptionData.valueToMatch cOptionData.lotherInterAttrs interactableId
+        CheckAndActIfChosenOptionIs playerChoice lcOptionData interactableId ->
+            manifestUpdate interactableId (checkAndActIfChosenOptionIs playerChoice lcOptionData interactableId manifest) ( manifest, linteractionincidents )
+                --|> processCreateOrSetOtherInteractableAttributesIfChosenOptionIs playerChoice cOptionData.valueToMatch cOptionData.lotherInterAttrs interactableId
+                |> processNewChangeWorldCommands interactableId
 
-        ProcessChosenOptionEqualTo cOptionData id ->
-            manifestUpdate id (processChosenOptionEqualTo cOptionData) ( manifest, linteractionincidents )
+        --ProcessChosenOptionEqualTo cOptionData id ->
+        --    manifestUpdate id (processChosenOptionEqualTo cOptionData manifest) ( manifest, linteractionincidents )
+        ResetOption interactableId ->
+            manifestUpdate interactableId resetOption ( manifest, linteractionincidents )
 
         CreateAMultiChoice dslss id ->
             manifestUpdate id (createAmultiChoice dslss) ( manifest, linteractionincidents )
 
         RemoveMultiChoiceOptions id ->
-            manifestUpdate id (removeMultiChoiceOptions) ( manifest, linteractionincidents )
+            manifestUpdate id removeMultiChoiceOptions ( manifest, linteractionincidents )
 
         CreateCounterIfNotExists counterId interactableId ->
             manifestUpdate interactableId (createCounterIfNotExists counterId) ( manifest, linteractionincidents )
@@ -471,14 +474,14 @@ update change ( manifest, linteractionincidents ) =
         IncreaseCounter counterId interactableId ->
             manifestUpdate interactableId (increaseCounter counterId) ( manifest, linteractionincidents )
 
-        CreateAttributeIfNotExists attrValue attrId interactableId ->
-            manifestUpdate interactableId (createAttributeIfNotExists attrValue attrId) ( manifest, linteractionincidents )
+        CreateAttributeIfNotExists attrValue attrId mbInternal interactableId ->
+            manifestUpdate interactableId (createAttributeIfNotExists attrValue attrId mbInternal) ( manifest, linteractionincidents )
 
-        SetAttributeValue attrValue attrId interactableId ->
-            manifestUpdate interactableId (setAttributeValue attrValue attrId) ( manifest, linteractionincidents )
+        SetAttributeValue attrValue attrId mbInternal interactableId ->
+            manifestUpdate interactableId (setAttributeValue attrValue attrId mbInternal) ( manifest, linteractionincidents )
 
-        CreateAttributeIfNotExistsAndOrSetValue attrValue attrId interactableId ->
-            manifestUpdate interactableId (createAttributeIfNotExistsAndOrSetValue attrValue attrId) ( manifest, linteractionincidents )
+        CreateAttributeIfNotExistsAndOrSetValue attrValue attrId mbInternal interactableId ->
+            manifestUpdate interactableId (createAttributeIfNotExistsAndOrSetValue attrValue attrId mbInternal) ( manifest, linteractionincidents )
 
         CreateOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId interactableId ->
             manifestUpdate interactableId (createOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId manifest) ( manifest, linteractionincidents )
@@ -497,6 +500,14 @@ update change ( manifest, linteractionincidents ) =
 
         MakeItUnanswerable id ->
             manifestUpdate id makeItUnanswerable ( manifest, linteractionincidents )
+
+        ExecuteCustomFunc func extraInfo interactableId ->
+            func extraInfo manifest
+                |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
+
+        ExecuteCustomFuncUsingRandomElems func extraInfo lfloats interactableId ->
+            func extraInfo lfloats manifest
+                |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
 
         LoadScene str ->
             -- doesnt imply a change in the manifest. It is handled in Engine.changeWorld only
@@ -517,8 +528,24 @@ update change ( manifest, linteractionincidents ) =
 
 createAmultiChoice : Dict String (List ( String, String )) -> Maybe Interactable -> Maybe Interactable
 createAmultiChoice dslss mbInteractable =
-    createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsList" mbInteractable
+    createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsList" (Just "internal") mbInteractable
+        |> createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsListBackup" (Just "internal")
         |> removeAttributeIfExists "chosenOption"
+
+
+reactivateMultiChoiceFromBackup : Maybe Interactable -> Maybe Interactable
+reactivateMultiChoiceFromBackup mbInteractable =
+    let
+        mbAnsOptList =
+            getInteractableAttribute "answerOptionsListBackup" mbInteractable
+    in
+    case mbAnsOptList of
+        Just ansOptList ->
+            createAttributeIfNotExistsAndOrSetValue ansOptList "answerOptionsList" (Just "internal") mbInteractable
+                |> removeAttributeIfExists "chosenOption"
+
+        Nothing ->
+            mbInteractable
 
 
 removeMultiChoiceOptions : Maybe Interactable -> Maybe Interactable
@@ -528,25 +555,46 @@ removeMultiChoiceOptions mbInteractable =
 
 processCreateOrSetOtherInteractableAttributesIfAnswerCorrect : List ( String, String, AttrTypes ) -> String -> ( Manifest, List String ) -> ( Manifest, List String )
 processCreateOrSetOtherInteractableAttributesIfAnswerCorrect lotherInterAttrs interactableId ( manifest, linteractionincidents ) =
-    if (attrValueIsEqualTo (Abool True) "isCorrectlyAnswered" interactableId manifest) then
-        List.map (\( interactableId, attrId, attrValue ) -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId interactableId) lotherInterAttrs
+    if attrValueIsEqualTo (Abool True) "isCorrectlyAnswered" interactableId manifest then
+        List.map (\( interId, attrId, attrValue ) -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId Nothing interId) lotherInterAttrs
             |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
+
     else
         ( manifest, linteractionincidents )
 
 
 processCreateOrSetOtherInteractableAttributesIfChosenOptionIs : String -> String -> List ( String, String, AttrTypes ) -> String -> ( Manifest, List String ) -> ( Manifest, List String )
 processCreateOrSetOtherInteractableAttributesIfChosenOptionIs playerChoice valToMatch lotherInterAttrs interactableId ( manifest, linteractionincidents ) =
-    if (playerChoice == valToMatch) then
-        List.map (\( interactableId, attrId, attrValue ) -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId interactableId) lotherInterAttrs
+    if playerChoice == valToMatch then
+        List.map (\( interId, attrId, attrValue ) -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId Nothing interId) lotherInterAttrs
             |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
+
     else
         ( manifest, linteractionincidents )
 
 
+processNewChangeWorldCommands : String -> ( Manifest, List String ) -> ( Manifest, List String )
+processNewChangeWorldCommands interactableId ( manifest, linteractionincidents ) =
+    case Dict.get interactableId manifest of
+        Just (Item idata) ->
+            List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents ) idata.newCWCmds
+                |> manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted
+
+        Just (Character cdata) ->
+            List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents ) cdata.newCWCmds
+                |> manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted
+
+        Just (Location ldata) ->
+            List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents ) ldata.newCWCmds
+                |> manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted
+
+        Nothing ->
+            ( manifest, linteractionincidents )
+
+
 getInteractionErrors : String -> Manifest -> List String
 getInteractionErrors interactableId manifest =
-    case (Dict.get interactableId manifest) of
+    case Dict.get interactableId manifest of
         Just (Item idata) ->
             idata.interactionErrors
 
@@ -562,7 +610,7 @@ getInteractionErrors interactableId manifest =
 
 getInteractionWarnings : String -> Manifest -> List String
 getInteractionWarnings interactableId manifest =
-    case (Dict.get interactableId manifest) of
+    case Dict.get interactableId manifest of
         Just (Item idata) ->
             idata.interactionWarnings
 
@@ -586,7 +634,7 @@ createCounterIfNotExists counterId mbinteractable =
                     "counter_" ++ thecounterId
 
                 newAttributes =
-                    case (Dict.get counterStrID dataRecord.attributes) of
+                    case Dict.get counterStrID dataRecord.attributes of
                         Nothing ->
                             Dict.insert counterStrID (AnInt 0) dataRecord.attributes
 
@@ -596,20 +644,20 @@ createCounterIfNotExists counterId mbinteractable =
                 newDataRecord =
                     { dataRecord | attributes = newAttributes }
             in
-                newDataRecord
+            newDataRecord
     in
-        case mbinteractable of
-            Just (Item idata) ->
-                Just (Item <| getNewDataRecord counterId idata)
+    case mbinteractable of
+        Just (Item idata) ->
+            Just (Item <| getNewDataRecord counterId idata)
 
-            Just (Character cdata) ->
-                Just (Character <| getNewDataRecord counterId cdata)
+        Just (Character cdata) ->
+            Just (Character <| getNewDataRecord counterId cdata)
 
-            Just (Location ldata) ->
-                Just (Location <| getNewDataRecord counterId ldata)
+        Just (Location ldata) ->
+            Just (Location <| getNewDataRecord counterId ldata)
 
-            Nothing ->
-                Nothing
+        Nothing ->
+            Nothing
 
 
 increaseCounter : String -> Maybe Interactable -> Maybe Interactable
@@ -622,7 +670,7 @@ increaseCounter counterId mbinteractable =
                     "counter_" ++ thecounterId
 
                 newAttributes =
-                    case (Dict.get counterStrID dataRecord.attributes) of
+                    case Dict.get counterStrID dataRecord.attributes of
                         Nothing ->
                             dataRecord.attributes
 
@@ -637,41 +685,46 @@ increaseCounter counterId mbinteractable =
                 newDataRecord =
                     { dataRecord | attributes = newAttributes }
             in
-                newDataRecord
+            newDataRecord
     in
-        case mbinteractable of
-            Just (Item idata) ->
-                Just (Item <| getNewDataRecord counterId idata)
+    case mbinteractable of
+        Just (Item idata) ->
+            Just (Item <| getNewDataRecord counterId idata)
 
-            Just (Character cdata) ->
-                Just (Character <| getNewDataRecord counterId cdata)
+        Just (Character cdata) ->
+            Just (Character <| getNewDataRecord counterId cdata)
 
-            Just (Location ldata) ->
-                Just (Location <| getNewDataRecord counterId ldata)
+        Just (Location ldata) ->
+            Just (Location <| getNewDataRecord counterId ldata)
 
-            Nothing ->
-                Nothing
+        Nothing ->
+            Nothing
 
 
-createAttributeIfNotExists : AttrTypes -> String -> Maybe Interactable -> Maybe Interactable
-createAttributeIfNotExists initialVal attrId mbinteractable =
-    let
-        getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
-        getNewDataRecord theInitialVal theAttrId dataRecord =
-            let
-                newAttributes =
-                    case (Dict.get theAttrId dataRecord.attributes) of
-                        Nothing ->
-                            Dict.insert theAttrId theInitialVal dataRecord.attributes
+createAttributeIfNotExists : AttrTypes -> String -> Maybe String -> Maybe Interactable -> Maybe Interactable
+createAttributeIfNotExists initialVal attrId mbInternal mbinteractable =
+    if mbInternal == Nothing && List.member attrId getReservedAttrIds then
+        mbinteractable
+            |> writeInteractionIncident "warning" ("Sorry ! It was not possible to create  attribute. That's a 'reserved' attributeId : " ++ attrId)
 
-                        Just c ->
-                            dataRecord.attributes
+    else
+        let
+            getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
+            getNewDataRecord theInitialVal theAttrId dataRecord =
+                let
+                    newAttributes =
+                        case Dict.get theAttrId dataRecord.attributes of
+                            Nothing ->
+                                Dict.insert theAttrId theInitialVal dataRecord.attributes
 
-                newDataRecord =
-                    { dataRecord | attributes = newAttributes }
-            in
+                            Just c ->
+                                dataRecord.attributes
+
+                    newDataRecord =
+                        { dataRecord | attributes = newAttributes }
+                in
                 newDataRecord
-    in
+        in
         case mbinteractable of
             Just (Item idata) ->
                 Just (Item <| getNewDataRecord initialVal attrId idata)
@@ -696,23 +749,24 @@ writeInteractionIncident incidentType incidentStr mbInteractable =
                 descriptionStr =
                     theIncidentStr ++ "InteractableId : " ++ dataRecord.interactableId
             in
-                if (theIncidentType == "warning") then
-                    { dataRecord | interactionWarnings = descriptionStr :: dataRecord.interactionWarnings }
-                else
-                    { dataRecord | interactionErrors = descriptionStr :: dataRecord.interactionErrors }
+            if theIncidentType == "warning" then
+                { dataRecord | interactionWarnings = descriptionStr :: dataRecord.interactionWarnings }
+
+            else
+                { dataRecord | interactionErrors = descriptionStr :: dataRecord.interactionErrors }
     in
-        case mbInteractable of
-            Just (Item idata) ->
-                Just (Item <| writeHelper incidentType incidentStr idata)
+    case mbInteractable of
+        Just (Item idata) ->
+            Just (Item <| writeHelper incidentType incidentStr idata)
 
-            Just (Character cdata) ->
-                Just (Character <| writeHelper incidentType incidentStr cdata)
+        Just (Character cdata) ->
+            Just (Character <| writeHelper incidentType incidentStr cdata)
 
-            Just (Location ldata) ->
-                Just (Location <| writeHelper incidentType incidentStr ldata)
+        Just (Location ldata) ->
+            Just (Location <| writeHelper incidentType incidentStr ldata)
 
-            Nothing ->
-                Nothing
+        Nothing ->
+            Nothing
 
 
 clearInteractionIncidents : String -> Maybe Interactable -> Maybe Interactable
@@ -720,23 +774,24 @@ clearInteractionIncidents incidentType mbInteractable =
     let
         clearHelper : String -> { a | interactableId : String, interactionErrors : List String, interactionWarnings : List String } -> { a | interactableId : String, interactionErrors : List String, interactionWarnings : List String }
         clearHelper theIncidentType dataRecord =
-            if (theIncidentType == "warning") then
+            if theIncidentType == "warning" then
                 { dataRecord | interactionWarnings = [] }
+
             else
                 { dataRecord | interactionErrors = [] }
     in
-        case mbInteractable of
-            Just (Item idata) ->
-                Just (Item <| clearHelper incidentType idata)
+    case mbInteractable of
+        Just (Item idata) ->
+            Just (Item <| clearHelper incidentType idata)
 
-            Just (Character cdata) ->
-                Just (Character <| clearHelper incidentType cdata)
+        Just (Character cdata) ->
+            Just (Character <| clearHelper incidentType cdata)
 
-            Just (Location ldata) ->
-                Just (Location <| clearHelper incidentType ldata)
+        Just (Location ldata) ->
+            Just (Location <| clearHelper incidentType ldata)
 
-            Nothing ->
-                Nothing
+        Nothing ->
+            Nothing
 
 
 addLocation : Maybe Interactable -> Maybe Interactable
@@ -747,7 +802,7 @@ addLocation mbInteractable =
                 newldata =
                     { ldata | shown = True }
             in
-                Just (Location newldata)
+            Just (Location newldata)
 
         Nothing ->
             Nothing
@@ -765,7 +820,7 @@ removeLocation mbInteractable =
                 newldata =
                     { ldata | shown = False }
             in
-                Just (Location newldata)
+            Just (Location newldata)
 
         Nothing ->
             Nothing
@@ -775,22 +830,29 @@ removeLocation mbInteractable =
                 |> writeInteractionIncident "error" "Trying to use removeLocation function with an interactable that is not a Location ! "
 
 
-moveItemToInventory : Maybe Interactable -> Maybe Interactable
-moveItemToInventory mbInteractable =
+moveItemToCharacterInventory : String -> Manifest -> Maybe Interactable -> Maybe Interactable
+moveItemToCharacterInventory charId manifest mbInteractable =
     case mbInteractable of
         Just (Item idata) ->
-            if (not idata.fixed) then
-                Just (Item { idata | itemPlacement = ItemInInventory })
+            if not idata.fixed then
+                case Dict.get charId manifest of
+                    Just acharacter ->
+                        Just (Item { idata | itemPlacement = ItemInCharacterInventory charId })
+
+                    Nothing ->
+                        mbInteractable
+                            |> writeInteractionIncident "error" "Trying to use moveItemToCharacterInventory function with a character that doesn't exist ! "
+
             else
                 mbInteractable
-                    |> writeInteractionIncident "warning" "Trying to use moveItemToInventory function with an interactable that is an Item fixed to a Location . Can't be moved ! "
+                    |> writeInteractionIncident "warning" "Trying to use moveItemToCharacterInventory function with an interactable that is an Item fixed to a Location . Can't be moved ! "
 
         Nothing ->
             Nothing
 
         _ ->
             mbInteractable
-                |> writeInteractionIncident "error" "Trying to use moveItemToInventory function with an interactable that is not an Item ! "
+                |> writeInteractionIncident "error" "Trying to use moveItemToCharacterInventory function with an interactable that is not an Item ! "
 
 
 moveItemOffScreen : Maybe Interactable -> Maybe Interactable
@@ -890,6 +952,7 @@ writeTextToItem theText mbinteractable =
         Just (Item idata) ->
             if idata.isWritable then
                 Just (Item { idata | writtenContent = Just theText })
+
             else
                 mbinteractable
                     |> writeInteractionIncident "warning" "Trying to use writeTextToItem function with an interactable that is a notWritable Item ! "
@@ -914,18 +977,22 @@ writeForceTextToItemFromOtherInteractableAttrib attrid intcId manifest mbinterac
                 theText =
                     case theAttrVal of
                         Just (Abool bval) ->
-                            toString bval
+                            if bval then
+                                "True"
+
+                            else
+                                "False"
 
                         Just (Astring s) ->
                             s
 
                         Just (AnInt i) ->
-                            toString i
+                            String.fromInt i
 
                         _ ->
                             ""
             in
-                Just (Item { idata | writtenContent = Just theText })
+            Just (Item { idata | writtenContent = Just theText })
 
         Nothing ->
             Nothing
@@ -977,8 +1044,8 @@ getItemWrittenContent mbInteractable =
             Nothing
 
 
-checkIfAnswerCorrect : List String -> String -> CheckAnswerData -> Maybe Interactable -> Maybe Interactable
-checkIfAnswerCorrect theCorrectAnswers playerAnswer checkAnsData mbinteractable =
+checkIfAnswerCorrect : QuestionAnswer -> String -> CheckAnswerData -> Manifest -> Maybe Interactable -> Maybe Interactable
+checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractable =
     case mbinteractable of
         Just (Item idata) ->
             let
@@ -992,8 +1059,9 @@ checkIfAnswerCorrect theCorrectAnswers playerAnswer checkAnsData mbinteractable 
                     "___REACH_MAX_NR_TRIES___"
 
                 playerAns =
-                    if (checkAnsData.answerFeedback == JustPlayerAnswer || checkAnsData.answerFeedback == HeaderAndAnswer || checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect) then
+                    if checkAnsData.answerFeedback == JustPlayerAnswer || checkAnsData.answerFeedback == HeaderAndAnswer || checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect then
                         "  \n ___YOUR_ANSWER___" ++ " " ++ playerAnswer
+
                     else
                         ""
 
@@ -1001,8 +1069,9 @@ checkIfAnswerCorrect theCorrectAnswers playerAnswer checkAnsData mbinteractable 
                     correct
                         ++ "  \n"
                         |> (\x ->
-                                if (checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect) then
+                                if checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect then
                                     x
+
                                 else
                                     ""
                            )
@@ -1013,23 +1082,28 @@ checkIfAnswerCorrect theCorrectAnswers playerAnswer checkAnsData mbinteractable 
                 maxNrTries =
                     Maybe.withDefault -999 checkAnsData.mbMaxNrTries
 
-                getAnsWrong nrTries theMax =
+                getAnsWrong nrTriesArg theMax =
                     let
                         ansFeedback =
-                            if (theMax > 0 && nrTries >= (theMax - 1)) then
+                            if theMax > 0 && nrTriesArg >= (theMax - 1) then
                                 "  \n" ++ " " ++ reach_max_nr_tries
+
                             else
                                 incorrect
-                                    ++ if theMax > 0 then
-                                        "  \n" ++ " " ++ "___NR_TRIES_LEFT___" ++ " " ++ toString (theMax - 1 - nrTries)
-                                       else
-                                        ""
+                                    ++ (if theMax > 0 then
+                                            "  \n" ++ " " ++ "___NR_TRIES_LEFT___" ++ " " ++ String.fromInt (theMax - 1 - nrTriesArg)
+
+                                        else
+                                            ""
+                                       )
                     in
-                        playerAns
-                            ++ if (checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect) then
+                    playerAns
+                        ++ (if checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect then
                                 ansFeedback
-                               else
+
+                            else
                                 ""
+                           )
 
                 nrTries =
                     getICounterValue "nrIncorrectAnswers" mbinteractable
@@ -1041,45 +1115,64 @@ checkIfAnswerCorrect theCorrectAnswers playerAnswer checkAnsData mbinteractable 
                         nrtries =
                             Maybe.withDefault 0 (getICounterValue "nrIncorrectAnswers" mbinteractable)
                     in
-                        if (maxnr > 0 && nrtries >= maxnr) then
-                            --makeItemUnwritable mbinter
-                            makeItUnanswerable mbinter
-                        else
-                            mbinter
+                    if maxnr > 0 && nrtries >= maxnr then
+                        --makeItemUnwritable mbinter
+                        makeItUnanswerable mbinter
 
+                    else
+                        mbinter
+
+                ( theCorrectAnswers, bEval ) =
+                    case questionAns of
+                        ListOfAnswersAndFunctions lstrs lfns ->
+                            ( lstrs
+                            , List.map (\fn -> fn playerAnswer manifest) lfns
+                                |> List.foldl (\b1 b2 -> b1 || b2) False
+                            )
+
+                thesuccessTextDict =
+                    generateFeedbackTextDict checkAnsData.correctAnsTextDict playerAnswer manifest
+
+                theInsuccessTextDict =
+                    generateFeedbackTextDict checkAnsData.incorrectAnsTextDict playerAnswer manifest
+
+                --otherInterAttribsRelatedCWcmds =
+                --    List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId otherInterId :: y) [] checkAnsData.lotherInterAttrs
                 theMbInteractable =
-                    if (maxNrTries > 0 && nrTries >= maxNrTries) then
+                    if maxNrTries > 0 && nrTries >= maxNrTries then
                         mbinteractable
                             |> makeItUnanswerable
+
                     else if
-                        (playerAnswer
+                        playerAnswer
                             == ""
                             || Dict.get "isCorrectlyAnswered" idata.attributes
                             == Just (Abool True)
-                        )
                     then
                         mbinteractable
                         -- if no answer was provided or correct answer was previously provided returns the exact same maybe interactable
-                    else if (comparesEqualToAtLeastOne playerAnswer theCorrectAnswers checkAnsData.answerCase checkAnsData.answerSpaces) then
-                        Just (Item { idata | writtenContent = (Just ansRight) })
+
+                    else if (List.length theCorrectAnswers > 0 && comparesEqualToAtLeastOne playerAnswer theCorrectAnswers checkAnsData.answerCase checkAnsData.answerSpaces) || bEval then
+                        Just (Item { idata | writtenContent = Just ansRight })
                             |> makeItUnanswerable
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer"
-                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isCorrectlyAnswered"
+                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isCorrectlyAnswered" (Just "internal")
                             |> removeAttributeIfExists "isIncorrectlyAnswered"
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring "___QUESTION_ANSWERED___") "narrativeHeader"
-                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringString checkAnsData.correctAnsTextDict) "additionalTextDict"
+                            |> createAttributeIfNotExistsAndOrSetValue (Astring "___QUESTION_ANSWERED___") "narrativeHeader" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString thesuccessTextDict) "additionalTextDict" (Just "internal")
                             |> createAttributesIfNotExistsAndOrSetValue checkAnsData.lnewAttrs
+
                     else
-                        Just (Item { idata | writtenContent = (Just (getAnsWrong nrTries maxNrTries)) })
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer"
-                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isIncorrectlyAnswered"
+                        Just (Item { idata | writtenContent = Just (getAnsWrong nrTries maxNrTries) })
+                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isIncorrectlyAnswered" (Just "internal")
                             |> removeAttributeIfExists "isCorrectlyAnswered"
-                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringString checkAnsData.incorrectAnsTextDict) "additionalTextDict"
+                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theInsuccessTextDict) "additionalTextDict" (Just "internal")
                             |> createCounterIfNotExists "nrIncorrectAnswers"
                             |> makeItUnanswarableIfReachedMaxTries (maxNrTries - 1)
                             |> increaseCounter "nrIncorrectAnswers"
             in
-                theMbInteractable
+            theMbInteractable
 
         Nothing ->
             Nothing
@@ -1089,39 +1182,114 @@ checkIfAnswerCorrect theCorrectAnswers playerAnswer checkAnsData mbinteractable 
                 |> writeInteractionIncident "error" "Trying to use checkIfAnswerCorrect function with an interactable that is not an Item ! "
 
 
-checkAndActIfChosenOptionIs : String -> CheckOptionData -> Maybe Interactable -> Maybe Interactable
-checkAndActIfChosenOptionIs playerChoice cOptionData mbinteractable =
+generateFeedbackTextDict : Dict String FeedbackText -> String -> Manifest -> Dict String (List String)
+generateFeedbackTextDict dcf answerOrChoice manifest =
+    let
+        fnFeedbackText : String -> FeedbackText -> List String
+        fnFeedbackText lgId choiceFeedback =
+            case choiceFeedback of
+                NoFeedbackText ->
+                    []
+
+                SimpleText ls ->
+                    ls
+
+                FnEvalText fn ->
+                    let
+                        afterFunc =
+                            fn answerOrChoice manifest
+                    in
+                    afterFunc
+
+        dAfterFunc =
+            Dict.map (\lgId cf -> fnFeedbackText lgId cf) dcf
+    in
+    dAfterFunc
+
+
+checkAndActIfChosenOptionIs : String -> List CheckOptionData -> String -> Manifest -> Maybe Interactable -> Maybe Interactable
+checkAndActIfChosenOptionIs playerChoice lcOptionData optionId manifest mbinteractable =
     case mbinteractable of
         Just (Item idata) ->
             let
                 choiceStr =
                     "  \n ___YOUR_CHOICE___" ++ " " ++ playerChoice
 
+                choiceComparesEqualToValToMatch choiceMatches =
+                    case choiceMatches of
+                        MatchStringValue strToMatch ->
+                            if playerChoice == strToMatch then
+                                True
+
+                            else
+                                False
+
+                        MatchAnyNonEmptyString ->
+                            if playerChoice /= "" then
+                                True
+
+                            else
+                                False
+
+                mbFindMatched =
+                    List.filter (\x -> choiceComparesEqualToValToMatch x.choiceMatches) lcOptionData
+                        |> List.head
+
+                resetOptionId =
+                    "reset_" ++ optionId
+
+                isResetPossible =
+                    getAttributeByIdAndInteractableId "isResetOptionPossible" optionId manifest
+                        |> Maybe.withDefault (Abool False)
+
                 theMbInteractable =
-                    if
-                        (playerChoice
+                    if playerChoice == "" && Dict.get "chosenOption" idata.attributes == Nothing then
+                        mbinteractable
+                            |> removeAttributeIfExists "suggestedInteraction"
+
+                    else if
+                        playerChoice
                             == ""
                             || Dict.get "chosenOption" idata.attributes
                             /= Nothing
-                        )
                     then
                         mbinteractable
                         -- if no choice or it was already chosen before it doesnt check
                         -- and doesnt make any alteration
-                    else if (playerChoice == cOptionData.valueToMatch) then
-                        Just (Item { idata | writtenContent = Just choiceStr })
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerChoice) "chosenOption"
-                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringString cOptionData.successTextDict) "additionalTextDict"
-                            |> createAttributesIfNotExistsAndOrSetValue cOptionData.lnewAttrs
-                            |> removeAttributeIfExists "answerOptionsList"
+
+                    else if mbFindMatched /= Nothing then
+                        case mbFindMatched of
+                            Just cOptionData ->
+                                let
+                                    theTextDict =
+                                        generateFeedbackTextDict cOptionData.choiceFeedbackText playerChoice manifest
+
+                                    otherInterAttribsRelatedCWcmds =
+                                        List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId (Just "internal") otherInterId :: y) [] cOptionData.lotherInterAttrs
+                                in
+                                Just (Item { idata | writtenContent = Just choiceStr })
+                                    |> createAttributeIfNotExistsAndOrSetValue (Astring playerChoice) "chosenOption" (Just "internal")
+                                    |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theTextDict) "additionalTextDict" (Just "internal")
+                                    |> createAttributesIfNotExistsAndOrSetValue cOptionData.lnewAttrs
+                                    |> setNextChangeWorldCommandsToBeExecuted (List.append cOptionData.lnewCWcmds otherInterAttribsRelatedCWcmds)
+                                    |> removeAttributeIfExists "answerOptionsList"
+                                    |> makeItemUnwritable
+                                    |> (\mbinter ->
+                                            if isResetPossible == Abool True then
+                                                createAttributeIfNotExistsAndOrSetValue (Astring resetOptionId) "suggestedInteraction" (Just "internal") mbinter
+
+                                            else
+                                                mbinter
+                                       )
+
+                            --|> setAttributeValue (aDictStringString Narrative.suggestedDeletedChoiceCaptionDict) "suggestedInteractionCaption" (Just "internal")
+                            Nothing ->
+                                mbinteractable
+
                     else
                         mbinteractable
-
-                --debugStr = "player choice is " ++ playerChoice ++ "  , successTextDict is " ++ (toString successTextDict)
-                --           ++ "  ,  valueTomatch is " ++ valueToMatch
-                --_ = Debug.log "debug checkIfChosenOptionIs in Engine.manifest was executed  : " debugStr
             in
-                theMbInteractable
+            theMbInteractable
 
         Nothing ->
             Nothing
@@ -1131,13 +1299,39 @@ checkAndActIfChosenOptionIs playerChoice cOptionData mbinteractable =
                 |> writeInteractionIncident "error" "Trying to use checkIfAnswerCorrect function with an interactable that is not an Item ! "
 
 
+resetOption : Maybe Interactable -> Maybe Interactable
+resetOption mbinteractable =
+    case mbinteractable of
+        Just (Item idata) ->
+            Just (Item { idata | writtenContent = Nothing })
+                |> removeAttributeIfExists "chosenOption"
+                |> removeAttributeIfExists "additionalTextDict"
+                |> (\mbint ->
+                        if getInteractableAttribute "displayOptionButtons" mbint == Just (Abool True) then
+                            reactivateMultiChoiceFromBackup mbint
+
+                        else
+                            makeItemWritable mbint
+                   )
+
+        Nothing ->
+            Nothing
+
+        _ ->
+            mbinteractable
+                |> writeInteractionIncident "error" "Trying to use resetOption function with an interactable that is not an Item ! "
+
+
 {-| This change should only be used in conjunction with isChosenOptionEqualTo as a condition
 if that condition is verified we know that playerChoice is equal to matchedValue and we can just call
 checkAndActIfChosenOptionIs
 -}
-processChosenOptionEqualTo : CheckOptionData -> Maybe Interactable -> Maybe Interactable
-processChosenOptionEqualTo cOptionData mbinteractable =
-    checkAndActIfChosenOptionIs cOptionData.valueToMatch cOptionData mbinteractable
+
+
+
+--processChosenOptionEqualTo : CheckOptionData -> Manifest -> Maybe Interactable -> Maybe Interactable
+--processChosenOptionEqualTo cOptionData manifest mbinteractable =
+--    checkAndActIfChosenOptionIs cOptionData.choiceMatches [ cOptionData ] manifest mbinteractable
 
 
 moveCharacterToLocation : String -> Maybe Interactable -> Maybe Interactable
@@ -1169,10 +1363,10 @@ moveCharacterOffScreen mbInteractable =
                 |> writeInteractionIncident "error" "Trying to use moveCharacterOffScreen function with an interactable that is not a Character ! "
 
 
-itemIsInInventory : String -> Manifest -> Bool
-itemIsInInventory id manifest =
-    getItemsInInventory manifest
-        |> List.any ((==) id)
+itemIsInCharacterInventory : String -> String -> Manifest -> Bool
+itemIsInCharacterInventory charId itemId manifest =
+    getItemsInCharacterInventory charId manifest
+        |> List.any ((==) itemId)
 
 
 itemIsCorrectlyAnswered : String -> Manifest -> Bool
@@ -1194,34 +1388,35 @@ itemIsIncorrectlyAnswered id manifest =
 
 itemIsNotAnswered : String -> Manifest -> Bool
 itemIsNotAnswered id manifest =
-    (not (itemIsCorrectlyAnswered id manifest)) && (not (itemIsIncorrectlyAnswered id manifest))
+    not (itemIsCorrectlyAnswered id manifest) && not (itemIsIncorrectlyAnswered id manifest)
 
 
 characterIsInLocation : String -> String -> Manifest -> Bool
-characterIsInLocation character currentLocation manifest =
+characterIsInLocation characterid currentLocation manifest =
     getCharactersInLocation currentLocation manifest
-        |> List.any ((==) character)
+        |> List.any ((==) characterid)
 
 
 itemIsInLocation : String -> String -> Manifest -> Bool
-itemIsInLocation item currentLocation manifest =
+itemIsInLocation itemid currentLocation manifest =
     getItemsInLocation currentLocation manifest
-        |> List.any ((==) item)
+        |> List.any ((==) itemid)
 
 
 itemIsNotInLocation : String -> String -> Manifest -> Bool
-itemIsNotInLocation item currentLocation manifest =
-    not (itemIsInLocation item currentLocation manifest)
+itemIsNotInLocation itemid currentLocation manifest =
+    not (itemIsInLocation itemid currentLocation manifest)
 
 
 itemIsOffScreen : String -> Manifest -> Bool
 itemIsOffScreen id manifest =
-    case (Dict.get id manifest) of
+    case Dict.get id manifest of
         Just interactable ->
             case interactable of
                 Item idata ->
-                    if (idata.itemPlacement == ItemOffScreen) then
+                    if idata.itemPlacement == ItemOffScreen then
                         True
+
                     else
                         False
 
@@ -1232,14 +1427,41 @@ itemIsOffScreen id manifest =
             False
 
 
-itemIsInAnyLocationOrInventory : String -> Manifest -> Bool
-itemIsInAnyLocationOrInventory id manifest =
-    case (Dict.get id manifest) of
+itemIsInAnyLocationOrCharacterInventory : String -> String -> Manifest -> Bool
+itemIsInAnyLocationOrCharacterInventory charId itemId manifest =
+    case Dict.get itemId manifest of
         Just interactable ->
             case interactable of
                 Item idata ->
                     case idata.itemPlacement of
-                        ItemInInventory ->
+                        ItemInCharacterInventory charId_ ->
+                            if charId == charId_ then
+                                True
+
+                            else
+                                False
+
+                        ItemInLocation locid ->
+                            True
+
+                        ItemOffScreen ->
+                            False
+
+                _ ->
+                    False
+
+        Nothing ->
+            False
+
+
+itemIsInAnyLocationOrAnyCharacterInventory : String -> Manifest -> Bool
+itemIsInAnyLocationOrAnyCharacterInventory itemId manifest =
+    case Dict.get itemId manifest of
+        Just interactable ->
+            case interactable of
+                Item idata ->
+                    case idata.itemPlacement of
+                        ItemInCharacterInventory _ ->
                             True
 
                         ItemInLocation locid ->
@@ -1260,25 +1482,25 @@ counterExists counterId interId manifest =
     let
         helperFunc : String -> { a | attributes : Dict String AttrTypes } -> Bool
         helperFunc theCounterId dataRecord =
-            case (Dict.get ("counter_" ++ theCounterId) dataRecord.attributes) of
+            case Dict.get ("counter_" ++ theCounterId) dataRecord.attributes of
                 Nothing ->
                     False
 
                 Just val ->
                     True
     in
-        case (Dict.get interId manifest) of
-            Just (Item idata) ->
-                helperFunc counterId idata
+    case Dict.get interId manifest of
+        Just (Item idata) ->
+            helperFunc counterId idata
 
-            Just (Character cdata) ->
-                helperFunc counterId cdata
+        Just (Character cdata) ->
+            helperFunc counterId cdata
 
-            Just (Location ldata) ->
-                helperFunc counterId ldata
+        Just (Location ldata) ->
+            helperFunc counterId ldata
 
-            Nothing ->
-                False
+        Nothing ->
+            False
 
 
 counterLessThen : Int -> String -> String -> Manifest -> Bool
@@ -1286,39 +1508,40 @@ counterLessThen val counterId interId manifest =
     let
         helperFunc : String -> { a | attributes : Dict String AttrTypes } -> Bool
         helperFunc theCounterId dataRecord =
-            case (Dict.get ("counter_" ++ theCounterId) dataRecord.attributes) of
+            case Dict.get ("counter_" ++ theCounterId) dataRecord.attributes of
                 Nothing ->
                     False
 
                 Just attrvalue ->
                     case attrvalue of
                         AnInt value ->
-                            if (value < val) then
+                            if value < val then
                                 True
+
                             else
                                 False
 
                         _ ->
                             False
     in
-        case (Dict.get interId manifest) of
-            Just (Item idata) ->
-                helperFunc counterId idata
+    case Dict.get interId manifest of
+        Just (Item idata) ->
+            helperFunc counterId idata
 
-            Just (Character cdata) ->
-                helperFunc counterId cdata
+        Just (Character cdata) ->
+            helperFunc counterId cdata
 
-            Just (Location ldata) ->
-                helperFunc counterId ldata
+        Just (Location ldata) ->
+            helperFunc counterId ldata
 
-            Nothing ->
-                False
+        Nothing ->
+            False
 
 
 counterGreaterThenOrEqualTo : Int -> String -> String -> Manifest -> Bool
 counterGreaterThenOrEqualTo val counterId interId manifest =
-    (counterExists counterId interId manifest)
-        && (not (counterLessThen val counterId interId manifest))
+    counterExists counterId interId manifest
+        && not (counterLessThen val counterId interId manifest)
 
 
 getCounterValue : String -> String -> Manifest -> Maybe Int
@@ -1331,7 +1554,7 @@ getCounterValue counterId interId manifest =
 -}
 getICounterValue : String -> Maybe Interactable -> Maybe Int
 getICounterValue counterId mbInteractable =
-    case (mbInteractable) of
+    case mbInteractable of
         Just (Item idata) ->
             Dict.get ("counter_" ++ counterId) idata.attributes
                 |> convertMbAttrTypeToMbInt
@@ -1365,54 +1588,60 @@ convertMbAttrTypeToMbInt mbanint =
 
 attrValueIsEqualTo : AttrTypes -> String -> String -> Manifest -> Bool
 attrValueIsEqualTo attrValue attrId interactableId manifest =
-    case (Dict.get interactableId manifest) of
+    case Dict.get interactableId manifest of
         Nothing ->
             False
 
         Just interactable ->
             case interactable of
                 Item idata ->
-                    if (Dict.get attrId idata.attributes == Just attrValue) then
+                    if Dict.get attrId idata.attributes == Just attrValue then
                         True
+
                     else
                         False
 
                 Character cdata ->
-                    if (Dict.get attrId cdata.attributes == Just attrValue) then
+                    if Dict.get attrId cdata.attributes == Just attrValue then
                         True
+
                     else
                         False
 
                 Location ldata ->
-                    if (Dict.get attrId ldata.attributes == Just attrValue) then
+                    if Dict.get attrId ldata.attributes == Just attrValue then
                         True
+
                     else
                         False
 
 
+{-| sets attribute value only if attribute was previously created
+-}
+setAttributeValue : AttrTypes -> String -> Maybe String -> Maybe Interactable -> Maybe Interactable
+setAttributeValue attrValue attrId mbInternal mbinteractable =
+    if mbInternal == Nothing && List.member attrId getReservedAttrIds then
+        mbinteractable
+            |> writeInteractionIncident "warning" ("Sorry ! It was not possible to  set attribute value . That's a 'reserved' attributeId : " ++ attrId)
 
-{- sets attribute value only if attribute was previously created -}
+    else
+        let
+            getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
+            getNewDataRecord theattrValue theattrId dataRecord =
+                let
+                    newAttributes =
+                        case Dict.get theattrId dataRecord.attributes of
+                            Nothing ->
+                                dataRecord.attributes
 
+                            Just val ->
+                                Dict.update theattrId (\_ -> Just theattrValue) dataRecord.attributes
 
-setAttributeValue : AttrTypes -> String -> Maybe Interactable -> Maybe Interactable
-setAttributeValue attrValue attrId mbinteractable =
-    let
-        getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
-        getNewDataRecord theattrValue theattrId dataRecord =
-            let
-                newAttributes =
-                    case Dict.get theattrId dataRecord.attributes of
-                        Nothing ->
-                            dataRecord.attributes
-
-                        Just val ->
-                            Dict.update theattrId (\_ -> Just theattrValue) dataRecord.attributes
-
-                newDataRecord =
-                    { dataRecord | attributes = newAttributes }
-            in
+                    newDataRecord =
+                        { dataRecord | attributes = newAttributes }
+                in
                 newDataRecord
-    in
+        in
         case mbinteractable of
             Just (Item idata) ->
                 Just (Item <| getNewDataRecord attrValue attrId idata)
@@ -1427,18 +1656,15 @@ setAttributeValue attrValue attrId mbinteractable =
                 Nothing
 
 
-createAttributeIfNotExistsAndOrSetValue : AttrTypes -> String -> Maybe Interactable -> Maybe Interactable
-createAttributeIfNotExistsAndOrSetValue theVal attrId mbinteractable =
-    createAttributeIfNotExists theVal attrId mbinteractable
-        |> setAttributeValue theVal attrId
+createAttributeIfNotExistsAndOrSetValue : AttrTypes -> String -> Maybe String -> Maybe Interactable -> Maybe Interactable
+createAttributeIfNotExistsAndOrSetValue theVal attrId mbInternal mbinteractable =
+    createAttributeIfNotExists theVal attrId mbInternal mbinteractable
+        |> setAttributeValue theVal attrId mbInternal
 
 
-
-{- tries to create and or set the value of several attributes on the interactable given by the list of tuples
-   first element of tuple is attribute id and second is the attribute value
+{-| tries to create and or set the value of several attributes on the interactable given by the list of tuples
+first element of tuple is attribute id and second is the attribute value
 -}
-
-
 createAttributesIfNotExistsAndOrSetValue : List ( String, AttrTypes ) -> Maybe Interactable -> Maybe Interactable
 createAttributesIfNotExistsAndOrSetValue ltupattrs mbinteractable =
     case ltupattrs of
@@ -1446,7 +1672,7 @@ createAttributesIfNotExistsAndOrSetValue ltupattrs mbinteractable =
             mbinteractable
 
         head :: rest ->
-            createAttributeIfNotExistsAndOrSetValue (Tuple.second head) (Tuple.first head) mbinteractable
+            createAttributeIfNotExistsAndOrSetValue (Tuple.second head) (Tuple.first head) Nothing mbinteractable
                 |> createAttributesIfNotExistsAndOrSetValue rest
 
 
@@ -1456,14 +1682,14 @@ createOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId
         mbAttrVal =
             getInteractableAttribute otherInterAtrrId (Dict.get otherInterId manifest)
     in
-        -- if the attribute doesnt exist in the other interactable it doesn't create or set any attribute
-        case mbAttrVal of
-            Just theAttrVal ->
-                createAttributeIfNotExistsAndOrSetValue theAttrVal attrId mbinteractable
+    -- if the attribute doesnt exist in the other interactable it doesn't create or set any attribute
+    case mbAttrVal of
+        Just theAttrVal ->
+            createAttributeIfNotExistsAndOrSetValue theAttrVal attrId Nothing mbinteractable
 
-            Nothing ->
-                mbinteractable
-                    |> writeInteractionIncident "warning" ("Trying to use createOrSetAttributeValueFromOtherInterAttr function but attribute in other interactable doesnt exist ( or other interactable doesnt exist ) ! attributeId : " ++ attrId ++ " , otherInteractableId : " ++ otherInterId)
+        Nothing ->
+            mbinteractable
+                |> writeInteractionIncident "warning" ("Trying to use createOrSetAttributeValueFromOtherInterAttr function but attribute in other interactable doesnt exist ( or other interactable doesnt exist ) ! attributeId : " ++ attrId ++ " , otherInteractableId : " ++ otherInterId)
 
 
 removeAttributeIfExists : String -> Maybe Interactable -> Maybe Interactable
@@ -1474,25 +1700,25 @@ removeAttributeIfExists attrId mbinteractable =
                 newAttributes =
                     Dict.remove attrId idata.attributes
             in
-                Just (Item { idata | attributes = newAttributes })
+            Just (Item { idata | attributes = newAttributes })
 
         Just (Character cdata) ->
             let
                 newAttributes =
                     Dict.remove attrId cdata.attributes
             in
-                Just (Character { cdata | attributes = newAttributes })
+            Just (Character { cdata | attributes = newAttributes })
 
         Just (Location ldata) ->
             let
                 newAttributes =
                     Dict.remove attrId ldata.attributes
             in
-                Just (Location { ldata | attributes = newAttributes })
+            Just (Location { ldata | attributes = newAttributes })
 
         Nothing ->
             mbinteractable
-                |> writeInteractionIncident "error" ("Trying to remove attribute from  interactable that doesnt exist ")
+                |> writeInteractionIncident "error" "Trying to remove attribute from  interactable that doesnt exist "
 
 
 getInteractableAttribute : String -> Maybe Interactable -> Maybe AttrTypes
@@ -1511,13 +1737,51 @@ getInteractableAttribute attrId mbinteractable =
             Nothing
 
 
+getAttributeByIdAndInteractableId : String -> String -> Manifest -> Maybe AttrTypes
+getAttributeByIdAndInteractableId attrId interactableId manifest =
+    case Dict.get interactableId manifest of
+        Just (Item idata) ->
+            Dict.get attrId idata.attributes
+
+        Just (Character cdata) ->
+            Dict.get attrId cdata.attributes
+
+        Just (Location ldata) ->
+            Dict.get attrId ldata.attributes
+
+        _ ->
+            Nothing
+
+
+setNextChangeWorldCommandsToBeExecuted : List ChangeWorldCommand -> Maybe Interactable -> Maybe Interactable
+setNextChangeWorldCommandsToBeExecuted lcwcmds mbInteractable =
+    case mbInteractable of
+        Just (Item idata) ->
+            Just (Item { idata | newCWCmds = lcwcmds })
+
+        Just (Character cdata) ->
+            Just (Character { cdata | newCWCmds = lcwcmds })
+
+        Just (Location ldata) ->
+            Just (Location { ldata | newCWCmds = lcwcmds })
+
+        Nothing ->
+            mbInteractable
+
+
+clearNextChangeWorldCommandsToBeExecuted : Maybe Interactable -> Maybe Interactable
+clearNextChangeWorldCommandsToBeExecuted mbInteractable =
+    setNextChangeWorldCommandsToBeExecuted [] mbInteractable
+
+
 getReservedAttrIds : List String
 getReservedAttrIds =
     [ "playerAnswer"
     , "isCorrectlyAnswered"
     , "isIncorrectlyAnswered"
     , "narrativeHeader"
-    , "additionalTextDict"
+
+    --  , "additionalTextDict"
     , "chosenOption"
     , "answerOptionsList"
     ]
@@ -1529,19 +1793,22 @@ comparesEqual str1 str2 ansCase ansSpaces =
         ( str1_, str2_ ) =
             if ansCase == CaseInsensitiveAnswer then
                 ( String.toLower str1, String.toLower str2 )
+
             else
                 ( str1, str2 )
 
         ( str1Alt, str2Alt ) =
             if ansSpaces == AnswerSpacesDontMatter then
                 ( eliminateAllWhiteSpaces str1_, eliminateAllWhiteSpaces str2_ )
+
             else
                 ( str1_, str2_ )
     in
-        if (str1Alt == str2Alt) then
-            True
-        else
-            False
+    if str1Alt == str2Alt then
+        True
+
+    else
+        False
 
 
 comparesEqualToAtLeastOne : String -> List String -> Types.AnswerCase -> Types.AnswerSpaces -> Bool
@@ -1554,4 +1821,7 @@ comparesEqualToAtLeastOne str1 lstrs ansCase ansSpaces =
 
 eliminateAllWhiteSpaces : String -> String
 eliminateAllWhiteSpaces theStr =
-    Regex.replace Regex.All (Regex.regex " ") (\_ -> "") theStr
+    theStr
+        |> String.toList
+        |> List.filter (\c -> c /= ' ')
+        |> String.fromList

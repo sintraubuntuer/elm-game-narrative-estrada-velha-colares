@@ -1,10 +1,11 @@
-module OurStory.Narrative exposing (..)
+module OurStory.Narrative exposing (birdsNestOfferedByTotemShaper, birdsNestOfferedByTotemShaperDict, byronsPoemMonserrate, byronsPoemMonserrateDict, creditsInformation, desiredLanguages, endScreenInfo, enteringColares, enteringColaresDict, enteringDesvioQuintaSequoias, enteringDesvioQuintaSequoiasDict, enteringEugaria, enteringEugariaDict, enteringFonteDeMataAlva, enteringFonteDeMataAlvaDict, enteringFonteDosLadroes, enteringFonteDosLadroesDict, enteringLimiteSaoMartinhoColares, enteringLimiteSaoMartinhoColaresDict, enteringPalacioSeteais, enteringPalacioSeteaisDict, enteringPalacioSeteaisFromPenhaVerde, enteringPalacioSeteaisFromPenhaVerdeDict, enteringParquePalacioMonserrate, enteringParquePalacioMonserrateDict, enteringQuintaDoVinagre, enteringQuintaDoVinagreDict, enteringQuintaPenhaVerde, enteringQuintaPenhaVerdeDict, enteringQuintaPenhaVerdeFromDesvioQuintaDasSequoias, enteringQuintaPenhaVerdeFromDesvioQuintaDasSequoiasDict, enteringQuintinhaMonserrate, enteringQuintinhaMonserrateDict, enteringRuaTrindadeCoelho, enteringRuaTrindadeCoelhoDict, enteringSintra1914, enteringSintra1914CameraWithPhotoInsideOnTheGround, enteringSintra1914CameraWithPhotoInsideOnTheGroundDict, enteringSintra1914Dict, enteringSintra1914PhotographyAppears, enteringSintra1914PhotographyAppearsDict, enteringVillaRoma, enteringVillaRomaDict, findingPinholeCamera, findingPinholeCameraDict, gameHasEnded, gameHasEndedDict, getEnteringDesvioQuintaSequoias, getEnteringPalacioSeteaisString, getEnteringQuintaPenhaVerde, helpfulNotesAppear, helpfulNotesAppearDict, hintForPlayerOneSintra1914NoPhoto, hintForPlayerOneSintra1914NoPhotoDict, infoParquePalacioMonserrate, infoParquePalacioMonserrateDict, initialChoiceLanguages, interactingWithPlayerOne, interactingWithPlayerOneDict, leavingLargoCarlosFranca, leavingLargoCarlosFrancaDict, leavingWithoutGps, leavingWithoutGpsDict, leavingWithoutInteractingSabioSintra, leavingWithoutInteractingSabioSintraDict, lookAtGps, lookAtGpsDict, lookAtWiseNotes, lookAtWiseNotesDict, offerBirdsNestToGeocacher, offerBirdsNestToGeocacherDict, offerCameraAndPhotography1Sintra1914ToWiseManColares, offerCameraAndPhotography1Sintra1914ToWiseManColaresDict, offerPoemsBookToWiseManColares, offerPoemsBookToWiseManColaresDict, playWithCatAtRuaTrindadeCoelho, playWithCatAtRuaTrindadeCoelhoDict, questionAtColaresAdditionalTextDict, questionAtVillaRomaAdditionalTextDict, returningToLargoCarlosFranca, returningToLargoCarlosFrancaDict, returningToRuaBarbosaDoBocageInicio, returningToRuaBarbosaDoBocageInicioDict, settingUpPinholeCameraAtSintra1914, settingUpPinholeCameraAtSintra1914Dict, startScreenInfo, startingNarrative, startingNarrativeEn, startingNarratives, takeGps, takeGpsDict, talkToGeocacherEugaria, talkToGeocacherEugariaDict, talkToPhotographer, talkToPhotographerDict, talkToSintraWiseMan, talkToSintraWiseManDict, talkToTotemShaperQuintinhaMonserrate, talkToTotemShaperQuintinhaMonserrateDict, talkToTuristAtPalacioSeteais, talkToTuristAtPalacioSeteaisDict, talkToWiseManAfterQuestionColaresAppears, talkToWiseManAfterQuestionColaresAppearsDict, talkToWiseManAfterQuestionColaresCorrectlyAnswered, talkToWiseManAfterQuestionColaresCorrectlyAnsweredButStillSomeTasksToDo, talkToWiseManAfterQuestionColaresCorrectlyAnsweredButStillSomeTasksToDoDict, talkToWiseManAfterQuestionColaresCorrectlyAnsweredDict, talkToWiseManColares, talkToWiseManColaresDict, talkToWiseManColaresWhenNotInColaresDict, theCreditsInformationDict, viewPhotosEstradaVelhaColares, viewPhotosEstradaVelhaColaresDict, viewQuestionAtColares, viewQuestionAtColaresDict, viewQuestionAtFonteMataAlva, viewQuestionAtFonteMataAlvaDict, viewQuestionAtSeteaisAboutVillaRoma, viewQuestionAtSeteaisAboutVillaRomaDict, viewQuestionAtVillaRoma, viewQuestionAtVillaRomaDict, viewQuestionOneAtLimiteSaoMartinhoColares, viewQuestionOneAtLimiteSaoMartinhoColaresDict, viewQuestionTwoAtLimiteSaoMartinhoColares, viewQuestionTwoAtLimiteSaoMartinhoColaresDict, viewQuestionWhenNotAtTheRightLocationDict, viewSeveralAnimalsAtQuintinhaMonserrate, viewSeveralAnimalsAtQuintinhaMonserrateDict, viewTotemAtQuintinhaMonserrate, viewTotemAtQuintinhaMonserrateDict, warnNeedSeteaisVillaRomaQuestionCorrectlyAnswered, warnNeedSeteaisVillaRomaQuestionCorrectlyAnsweredDict, warnNeedVillaRomaQuestionCorrectlyAnswered, warnNeedVillaRomaQuestionCorrectlyAnsweredDict, wiseManShowsFinalQuestion, wiseManShowsFinalQuestionDict, wiseManTalksAboutSintra, wiseManTalksAboutSintraDict)
 
 import ClientTypes exposing (..)
 import Dict exposing (Dict)
 import OurStory.NarrativeEnglish exposing (..)
 import OurStory.NarrativeObsOne as NarrativeObsOne
 import OurStory.NarrativeObsTwo as NarrativeObsTwo
+
 
 
 {- These are  the languages for which it is mandatory  to generate  narrative content regarding each interaction
@@ -83,6 +84,7 @@ startingNarrative =
     """
     , mbAudio = Nothing
     , mbSuggestedInteractionId = Nothing
+    , suggestedInteractionCaption = "interacção sugerida : "
     , mbSuggestedInteractionName = Nothing
     , isLastInZipper = True
     }
@@ -95,6 +97,7 @@ startingNarrativeEn =
     , isWritable = False
     , interactableCssSelector = "opening"
     , mbSuggestedInteractionId = Nothing
+    , suggestedInteractionCaption = "interacção sugerida : "
     , mbSuggestedInteractionName = Nothing
     , narrative =
         """Every Story has a beginning , even though it's not allways easy to determine the exact moment

@@ -1,19 +1,14 @@
-module Theme.Settings exposing (init, Model, update, view)
-
-import Html exposing (..)
-
+module Theme.Settings exposing (Model, init, update, view)
 
 --import Html.Keyed
-
-import Html.Attributes exposing (..)
-import Html.Events exposing (..)
-import ClientTypes exposing (..)
-
-
 --import Components exposing (..)
 --import Tuple
 
+import ClientTypes exposing (..)
 import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
 import TranslationHelper exposing (getInLanguage)
 
 
@@ -63,7 +58,10 @@ update msg model =
             { model | layoutWithSidebar = bWithSidebar }
 
         SettingsShowExitToFinalScreenButton ->
-            { model | showExitToFinalScreenButton = not model.showExitToFinalScreenButton }
+            { model | showExitToFinalScreenButton = True }
+
+        SettingsHideExitToFinalScreenButton ->
+            { model | showExitToFinalScreenButton = False }
 
 
 
@@ -78,33 +76,37 @@ view : Model -> Html ClientTypes.Msg
 view model =
     let
         settingsClassStr =
-            if (model.layoutWithSidebar) then
+            if model.layoutWithSidebar then
                 "Settings"
+
             else
                 "Settings__NoSidebar"
     in
-        div [ class settingsClassStr ]
-            [ if (model.showExitToFinalScreenButton) then
-                viewExitToFinalScreenButton model
-              else
-                text ""
-            , h3 [ class "title" ]
-                [ text <| getInLanguage model.displayLanguage "___Settings___"
-                , text "  "
-                , viewShowHideSettingsOptions model
-                ]
-            , if (model.showExpandedSettings) then
-                div []
-                    [ viewLanguageGpsAudioAndLayoutOptions model
-                    , br [] []
-                    , if model.saveLoadEnabled then
-                        viewSaveLoadButtons model
-                      else
-                        text ""
-                    ]
-              else
-                text ""
+    div [ class settingsClassStr ]
+        [ if model.showExitToFinalScreenButton then
+            viewExitToFinalScreenButton model
+
+          else
+            text ""
+        , h3 [ class "title" ]
+            [ text <| getInLanguage model.displayLanguage "___Settings___"
+            , text "  "
+            , viewShowHideSettingsOptions model
             ]
+        , if model.showExpandedSettings then
+            div []
+                [ viewLanguageGpsAudioAndLayoutOptions model
+                , br [] []
+                , if model.saveLoadEnabled then
+                    viewSaveLoadButtons model
+
+                  else
+                    text ""
+                ]
+
+          else
+            text ""
+        ]
 
 
 viewExitToFinalScreenButton : Model -> Html ClientTypes.Msg
@@ -119,15 +121,16 @@ viewShowHideSettingsOptions : Model -> Html ClientTypes.Msg
 viewShowHideSettingsOptions model =
     let
         theText =
-            if (model.showExpandedSettings) then
+            if model.showExpandedSettings then
                 "(Hide)"
+
             else
                 "(Show)"
     in
-        a [ class "u-selectable", onClick ToggleShowExpandedSettings ]
-            --[ class "form-group" ]
-            [ text theText
-            ]
+    a [ class "u-selectable", onClick ToggleShowExpandedSettings ]
+        --[ class "form-group" ]
+        [ text theText
+        ]
 
 
 viewLanguageGpsAudioAndLayoutOptions : Model -> Html ClientTypes.Msg
@@ -136,10 +139,12 @@ viewLanguageGpsAudioAndLayoutOptions model =
         [ optionLanguagesView model.availableLanguages model.displayLanguage
         , if model.gpsOptionsEnabled then
             optionGpsCheckZone model.dontNeedToBeInZone model.displayLanguage
+
           else
             text ""
         , if model.audioOptionsEnabled then
             optionAudioAutoplay model.audioAutoplay model.displayLanguage
+
           else
             text ""
         , optionLayout model.layoutWithSidebar model.displayLanguage
@@ -149,12 +154,13 @@ viewLanguageGpsAudioAndLayoutOptions model =
 viewSaveLoadButtons : Model -> Html ClientTypes.Msg
 viewSaveLoadButtons model =
     div []
-        [ if (model.layoutWithSidebar) then
+        [ if model.layoutWithSidebar then
             h3 [] [ text <| getInLanguage model.displayLanguage "___SAVE_LOAD___" ]
+
           else
             label [ class "col-form-label" ] [ text <| getInLanguage model.displayLanguage "___SAVE_LOAD___" ]
         , viewShowHideSaveLoad model
-        , if (model.showSaveLoad) then
+        , if model.showSaveLoad then
             div []
                 [ div [ class "" ]
                     [ button [ class "saveBtn", onClick SaveHistory ] [ text "Save" ]
@@ -166,6 +172,7 @@ viewSaveLoadButtons model =
                     ]
                 , br [] []
                 ]
+
           else
             text ""
         ]
@@ -208,7 +215,7 @@ optionGpsCheckZone bdontcheck displayLanguageId =
         [ label [ class "col-form-label" ] [ text <| getInLanguage displayLanguageId "___Check_gps_coords___" ]
         , div [] <|
             [ div [ class "theradios" ] (radio bdontcheck True "dont check gps" (ChangeOptionDontCheckGps True))
-            , div [ class "theradios" ] (radio (bdontcheck) False "check" (ChangeOptionDontCheckGps False))
+            , div [ class "theradios" ] (radio bdontcheck False "check" (ChangeOptionDontCheckGps False))
             ]
         ]
 
@@ -219,7 +226,7 @@ optionAudioAutoplay bautoplay displayLanguageId =
         [ label [ class "col-form-label" ] [ text <| getInLanguage displayLanguageId "___AUDIO___" ]
         , div [] <|
             [ div [ class "theradios" ] (radio bautoplay True "autoplay" (ChangeOptionAudioAutoplay True))
-            , div [ class "theradios" ] (radio (bautoplay) False "dont autoplay" (ChangeOptionAudioAutoplay False))
+            , div [ class "theradios" ] (radio bautoplay False "dont autoplay" (ChangeOptionAudioAutoplay False))
             ]
         ]
 
@@ -230,7 +237,7 @@ optionLayout bWithSidebar displayLanguageId =
         [ label [ class "col-form-label" ] [ text <| getInLanguage displayLanguageId "___LAYOUT_OPTIONS___" ]
         , div [] <|
             [ div [ class "theradios" ] (radio bWithSidebar True "with Sidebar" (LayoutWithSideBar True))
-            , div [ class "theradios" ] (radio (bWithSidebar) False "no Sidebar" (LayoutWithSideBar False))
+            , div [ class "theradios" ] (radio bWithSidebar False "no Sidebar" (LayoutWithSideBar False))
             ]
         ]
 
@@ -239,11 +246,12 @@ viewShowHideSaveLoad : Model -> Html ClientTypes.Msg
 viewShowHideSaveLoad model =
     let
         theText =
-            if (model.showSaveLoad) then
+            if model.showSaveLoad then
                 "Hide"
+
             else
                 "Show"
     in
-        div []
-            [ button [ class "showHideBtn", onClick ToggleShowHideSaveLoadBtns ] [ text theText ]
-            ]
+    div []
+        [ button [ class "showHideBtn", onClick ToggleShowHideSaveLoadBtns ] [ text theText ]
+        ]

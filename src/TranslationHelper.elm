@@ -1,4 +1,4 @@
-module TranslationHelper exposing (..)
+module TranslationHelper exposing (getInLanguage)
 
 import Dict exposing (Dict)
 
@@ -74,12 +74,13 @@ getInLanguage lgId theStr =
         lgId_ =
             if lgId == "vi" || lgId == "vw" then
                 "en"
+
             else
                 lgId
     in
-        case (Dict.get ( theStr, lgId_ ) translationDict) of
-            Nothing ->
-                theStr
+    case Dict.get ( theStr, lgId_ ) translationDict of
+        Nothing ->
+            theStr
 
-            Just str ->
-                str
+        Just str ->
+            str

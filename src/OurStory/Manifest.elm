@@ -1,11 +1,20 @@
-module OurStory.Manifest exposing (items, locations, characters)
+module OurStory.Manifest exposing (characters, items, locations, playerId)
 
 import Components exposing (..)
+import GpsUtils exposing (Direction(..))
+
 
 
 {- Here is where you define your manifest -- all of the items, characters, and locations in your story. You can add what ever components you wish to each entity.  Note that the first argument to `entity` is the id for that entity, which is the id you must refer to in your rules.
    In the current theme, the description in the display info component is only used as a fallback narrative if a rule does not match with a more specific narrative when interacting with that story object.
 -}
+
+
+{-| make sure this is the same as defined below on characters
+-}
+playerId : String
+playerId =
+    "playerOne"
 
 
 items : List Entity
@@ -156,7 +165,7 @@ locations =
     , entity "ruaTrindadeCoelho"
         |> addDisplayInfo "Rua Trindade Coelho" "Rua estreita em ziguezague em direcção à Casa do Fauno , Caminho dos Frades e Caminho dos Castanhais"
         |> addConnectingLocations [ ( NorthEast, "villaRoma" ) ]
-        |> addNeedsToBeInGpsZone True 38.79804 -9.39909 Nothing
+        |> addNeedsToBeInGpsZone True 38.7991 -9.39965 Nothing
         |> addClassName "ruaTrindadeCoelho"
     , entity "palacioSeteais"
         |> addDisplayInfo "Seteais" "Bonitos jardins e palácio"

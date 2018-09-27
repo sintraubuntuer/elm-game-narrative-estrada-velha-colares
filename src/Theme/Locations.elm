@@ -1,16 +1,17 @@
-module Theme.Locations exposing (..)
+module Theme.Locations exposing (view)
 
+import ClientTypes exposing (..)
+import Components exposing (..)
+import GpsUtils
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import ClientTypes exposing (..)
-import Components exposing (..)
-import Tuple
 import TranslationHelper exposing (getInLanguage)
+import Tuple
 
 
 view :
-    List ( Direction, Entity )
+    List ( GpsUtils.Direction, Entity )
     -> Entity
     -> String
     -> Bool
@@ -26,25 +27,27 @@ view exits currentLocation lgId bWithSidebar =
                     [ text <|
                         (.name <| getSingleLgDisplayInfo lgId entity)
                     ]
-                , text (" is to the " ++ toString direction)
+                , text (" is to the " ++ GpsUtils.directionToString direction)
                 ]
 
-        formatIt bWithSidebar list =
+        formatIt bWithSidebarArg list =
             let
                 interactables =
-                    if (bWithSidebar) then
+                    if bWithSidebarArg then
                         List.intersperse (br [] []) list
+
                     else
                         List.intersperse (text ", ") list
             in
-                if (bWithSidebar) then
-                    interactables
-                        |> p []
-                else
-                    interactables
-                        ++ [ text "." ]
-                        |> (::) (text <| getInLanguage lgId "Connecting locations : ")
-                        |> p []
+            if bWithSidebarArg then
+                interactables
+                    |> p []
+
+            else
+                interactables
+                    ++ [ text "." ]
+                    |> (::) (text <| getInLanguage lgId "Connecting locations : ")
+                    |> p []
 
         theExitsList =
             if not <| List.isEmpty exits then
@@ -52,27 +55,30 @@ view exits currentLocation lgId bWithSidebar =
                     |> List.map (\( direction, entity ) -> interactableView Interact entity direction)
                     |> formatIt bWithSidebar
                 --|> if ( bWithSidebar ) then p[] else (formatToSpan bWithSidebar)
+
             else
                 span [] []
 
         locationsClass =
             if bWithSidebar then
                 "Locations"
+
             else
                 "Locations__NoSidebar"
     in
-        div [ class locationsClass ]
-            [ if (bWithSidebar) then
-                h3 [] [ text "Connecting locations" ]
-              else
-                text ""
-            , div [ class "Locations__list" ]
-                [ {- }
-                     if ( not bWithSidebar ) then
-                         text "Connecting locations"
-                     else
-                         text ""
-                  -}
-                  theExitsList
-                ]
+    div [ class locationsClass ]
+        [ if bWithSidebar then
+            h3 [] [ text "Connecting locations" ]
+
+          else
+            text ""
+        , div [ class "Locations__list" ]
+            [ {- }
+                 if ( not bWithSidebar ) then
+                     text "Connecting locations"
+                 else
+                     text ""
+              -}
+              theExitsList
             ]
+        ]

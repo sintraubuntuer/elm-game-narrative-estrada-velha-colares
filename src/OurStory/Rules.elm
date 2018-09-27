@@ -1,15 +1,14 @@
-module OurStory.Rules exposing (..)
-
-import Engine exposing (..)
-import Components exposing (..)
-import Dict exposing (Dict)
-import OurStory.Narrative as Narrative
-import InfoForBkendApiRequests exposing (backendAnswerCheckerUrl)
-
+module OurStory.Rules exposing (rule, ruleWithAudioContent, ruleWithQuasiChange, rules, startingState)
 
 --import Audio
 
 import ClientTypes exposing (AudioFileInfo)
+import Components exposing (..)
+import Dict exposing (Dict)
+import Engine exposing (..)
+import InfoForBkendApiRequests exposing (backendAnswerCheckerUrl)
+import OurStory.Narrative as Narrative
+
 
 
 --import Types exposing (..)
@@ -135,7 +134,7 @@ rules =
                         [ currentLocationIs "largoDrCarlosFranca"
                         , characterIsInLocation "sintraWiseMan" "largoDrCarlosFranca"
 
-                        --, itemIsNotInInventory "notasSabias"
+                        --, itemIsNotInCharacterInventory "playerOne" "notasSabias"
                         ]
                     , changes =
                         [ --moveItemToLocation  "notasSabias" "largoDrCarlosFranca"
@@ -149,7 +148,7 @@ rules =
                     { interaction = with "ruaBarbosaDoBocageInicio"
                     , conditions =
                         [ currentLocationIs "largoDrCarlosFranca"
-                        , itemIsNotInInventory "gps"
+                        , itemIsNotInCharacterInventory "playerOne" "gps"
                         ]
                     , changes =
                         []
@@ -169,10 +168,10 @@ rules =
                     { interaction = with "ruaBarbosaDoBocageInicio"
                     , conditions =
                         [ currentLocationIs "largoDrCarlosFranca"
-                        , itemIsInInventory "gps"
+                        , itemIsInCharacterInventory "playerOne" "gps"
                         , hasPreviouslyInteractedWith "sintraWiseMan"
 
-                        --, itemIsInInventory "basket"
+                        --, itemIsInCharacterInventory "playerOne" "basket"
                         ]
                     , changes =
                         [ moveTo "ruaBarbosaDoBocageInicio"
@@ -238,7 +237,7 @@ rules =
                     , changes = []
                     , quasiChanges =
                         [ simpleCheck_IfAnswerCorrect
-                            [ "Carlos Morato Roma" ]
+                            (listOfAnswersAndFunctions [ "Carlos Morato Roma" ] [])
                             Nothing
                             "questionAtVillaRoma"
                         ]
@@ -266,7 +265,7 @@ rules =
                     , conditions =
                         [ currentLocationIs "ruaTrindadeCoelho"
                         , characterIsInLocation "catOne" "ruaTrindadeCoelho"
-                        , itemIsInInventory "gps"
+                        , itemIsInCharacterInventory "playerOne" "gps"
                         ]
                     , changes =
                         [ moveItemToLocation "gps" "largoDrCarlosFranca"
@@ -311,7 +310,7 @@ rules =
                     , changes = []
                     , quasiChanges =
                         [ simpleCheck_IfAnswerCorrect
-                            [ "Dr. José Vicente Barbosa du Bocage" ]
+                            (listOfAnswersAndFunctions [ "Dr. José Vicente Barbosa du Bocage" ] [])
                             Nothing
                             "questionAtSeteaisAboutVillaRoma"
                         ]
@@ -446,7 +445,7 @@ rules =
                         ]
                     , changes =
                         [ moveItemOffScreen "tinCan"
-                        , moveItemToInventory "pinholeCamera"
+                        , moveItemToCharacterInventory "playerOne" "pinholeCamera"
                         ]
                     }
                     Narrative.findingPinholeCameraDict
@@ -473,7 +472,7 @@ rules =
                         , itemIsOffScreen "birdsNest"
                         ]
                     , changes =
-                        [ moveItemToInventory "birdsNest"
+                        [ moveItemToCharacterInventory "playerOne" "birdsNest"
                         , increaseCounter "nrTimesTalkTo" "totemShaper"
                         ]
                     }
@@ -523,7 +522,7 @@ rules =
                     , changes = []
                     , quasiChanges =
                         [ check_IfAnswerCorrect
-                            [ "1988" ]
+                            (listOfAnswersAndFunctions [ "1988" ] [])
                             (checkAnswerData
                                 (Just 5)
                                 caseInsensitiveAnswer
@@ -639,7 +638,7 @@ rules =
                     { interaction = with "pinholeCamera"
                     , conditions =
                         [ characterIsInLocation "playerOne" "sintra1914"
-                        , itemIsInInventory "pinholeCamera"
+                        , itemIsInCharacterInventory "playerOne" "pinholeCamera"
                         ]
                     , changes =
                         [ moveItemToLocation "pinholeCamera" "sintra1914"
@@ -741,12 +740,12 @@ rules =
                     , conditions =
                         [ characterIsInLocation "playerOne" "eugaria"
                         , characterIsInLocation "geocacher" "eugaria"
-                        , itemIsInInventory "birdsNest"
+                        , itemIsInCharacterInventory "playerOne" "birdsNest"
                         , hasPreviouslyInteractedWith "geocacher"
                         ]
                     , changes =
                         [ moveItemOffScreen "birdsNest"
-                        , moveItemToInventory "bocagePoemsBook"
+                        , moveItemToCharacterInventory "playerOne" "bocagePoemsBook"
                         , createAttributeIfNotExists (abool True) "isOfferedToGeocacher" "birdsNest"
                         ]
                     }
@@ -801,7 +800,7 @@ rules =
                     , conditions =
                         [ characterIsInLocation "playerOne" "colares"
                         , characterIsInLocation "wiseManColares" "colares"
-                        , itemIsInInventory "cameraAndPhotography1Sintra1914"
+                        , itemIsInCharacterInventory "playerOne" "cameraAndPhotography1Sintra1914"
                         ]
                     , changes =
                         [ moveItemOffScreen "cameraAndPhotography1Sintra1914"
@@ -814,7 +813,7 @@ rules =
                     , conditions =
                         [ characterIsInLocation "playerOne" "colares"
                         , characterIsInLocation "wiseManColares" "colares"
-                        , itemIsInInventory "cameraAndPhotography1Sintra1914"
+                        , itemIsInCharacterInventory "playerOne" "cameraAndPhotography1Sintra1914"
                         , attrValueIsEqualTo (abool True) "isOfferedToWiseManColares" "bocagePoemsBook"
                         ]
                     , changes =
@@ -829,7 +828,7 @@ rules =
                     , conditions =
                         [ characterIsInLocation "playerOne" "colares"
                         , characterIsInLocation "wiseManColares" "colares"
-                        , itemIsInInventory "bocagePoemsBook"
+                        , itemIsInCharacterInventory "playerOne" "bocagePoemsBook"
                         ]
                     , changes =
                         [ moveItemOffScreen "bocagePoemsBook"
@@ -842,7 +841,7 @@ rules =
                     , conditions =
                         [ characterIsInLocation "playerOne" "colares"
                         , characterIsInLocation "wiseManColares" "colares"
-                        , itemIsInInventory "bocagePoemsBook"
+                        , itemIsInCharacterInventory "playerOne" "bocagePoemsBook"
                         , attrValueIsEqualTo (abool True) "isOfferedToWiseManColares" "cameraAndPhotography1Sintra1914"
                         ]
                     , changes =
@@ -1007,7 +1006,7 @@ rules =
                         , itemIsInLocation "gps" "largoDrCarlosFranca"
                         ]
                     , changes =
-                        [ moveItemToInventory "gps" ]
+                        [ moveItemToCharacterInventory "playerOne" "gps" ]
                     }
                     Narrative.takeGpsDict
                , ruleWithQuasiChange "looking at gps"
@@ -1025,7 +1024,7 @@ rules =
                     , conditions =
                         []
                     , changes =
-                        [ moveItemToInventory "notasSabias" ]
+                        [ moveItemToCharacterInventory "playerOne" "notasSabias" ]
                     }
                     Narrative.lookAtWiseNotesDict
                , rule "lookAtcreditsInfo"

@@ -10,34 +10,133 @@
       <link rel="stylesheet" type="text/css" href="Theme/styles/github-markdown.css" />
 
     <title>Misterio da Estrada Velha de Colares - An Interactive Story</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.0-rc.3/dist/leaflet.css" />
+     <script src="https://unpkg.com/leaflet@1.0.0-rc.3/dist/leaflet.js"></script>
+     <style>
+          #mapid { height: 400px; width : 800px; margin : auto ; }
+         /* #mapAndApp { width : 600px; margin : auto ; }
+         */
+     </style>
   </head>
   <body>
-    <div id="outputArea">
+    <div id="mapAndApp">
+
+       <div id="mapid"></div>
+
+       <div id="outputArea"> </div>
     </div>
 
-  </body>
 
-  <script type="text/javascript" src="compiledjs/misterioEstradaVelhaColares.js"></script>
+
+  <script type="text/javascript" src="compiledjs/misterioEstradaVelhaColaresElm019.js"></script>
   <script type="text/javascript">
-     var node1 = document.getElementById("outputArea") ;
-     var elmApp = Elm.Main.embed( node1 , {   baseImgUrl : ""
-                                            , baseSoundUrl : "sound/"  }  );
 
+     var mymap = L.map('mapid').setView([38.79503 , -9.39289 ], 18);
+     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
+
+     var saveName = "estradaVelhaColares_historyStr" ;
+
+     var node1 = document.getElementById("outputArea") ;
+     var elmApp = Elm.Main.init({ node: document.getElementById('outputArea')
+                                  , flags : { "baseImgUrl" : ""
+                                              , "baseSoundUrl" : "sound/"
+                                            }
+                               }
+                               ) ;
 
      elmApp.ports.saveHistoryToStorage.subscribe(function(history) {
-        localStorage.setItem('historyStr', JSON.stringify(history));
-       
+        localStorage.setItem( saveName, JSON.stringify(history));
+
     });
 
       elmApp.ports.sendRequestForStoredHistory.subscribe(function(data) {
-     
-       var storedState = localStorage.getItem('historyStr');
-       var storedHistory = storedState ? JSON.parse(storedState) : ( { "playerName" : "" ,  "lInteractions" : new Array() } ) ;
+
+       var storedState = localStorage.getItem( saveName );
+       var storedHistory = storedState ? JSON.parse(storedState) : ( { "playerName" : "" ,  "lInteractions" : new Array() , "lPrandomFloats" : new Array() } ) ;
        elmApp.ports.getHistoryFromStorage.send(storedHistory)
    });
 
+
+   elmApp.ports.sendRequestForGeolocation.subscribe(function(interactableId) {
+     if (!navigator.geolocation){
+         console.log("Geolocation is not supported by your browser");
+         var failed_geolocation_info =   { "interactableId" : interactableId  , "latitude" : -999 ,  "longitude" : -999 }  ;
+
+         elmApp.ports.getGeolocationFromBrowser.send(failed_geolocation_info) ;
+         //return ;
+     }  else {
+
+         navigator.geolocation.getCurrentPosition(success, error);
+     }
+
+     function success(position) {
+         var latitude  = position.coords.latitude;
+         var longitude = position.coords.longitude;
+
+         var geolocation_info =   { "interactableId" : interactableId  , "latitude" : latitude ,  "longitude" : longitude }  ;
+         elmApp.ports.getGeolocationFromBrowser.send(geolocation_info) ;
+
+
+     }
+
+     function error() {
+         //output.innerHTML = "Unable to retrieve your location";
+         console.log("Unable to retrieve your location") ;
+     }
+    });
+
+
+    elmApp.ports.setView.subscribe(function(data){
+        mymap.setView.apply(mymap, data);
+    }) ;
+
+
+    var myIcon = L.icon({
+        iconUrl: './img/markers/mapmarker.png',
+        iconSize: [32, 32],
+    });
+
+    var myIconCurrent = L.icon({
+        iconUrl: './img/markers/mapmarker_currentStage.png',
+        iconSize: [32, 32],
+    });
+
+    var myIconPlayer = L.icon({
+        iconUrl: './img/markers/mapmarker_player.png',
+        iconSize: [32, 32],
+    });
+
+    var markerArray = new Array()
+
+    elmApp.ports.filterMarkersCmdPort.subscribe(function(data){
+
+        markerArray.forEach( function(themarker) {
+            themarker.removeFrom(mymap) ;
+        } ) ;
+
+        var stageMarkerInfo = data.stageMarkerInfo ;
+        stageMarkerInfo.forEach( function(coordsObj) {
+             var coords = coordsObj.coords ;
+             var themarker ;
+             if ( coordsObj.marker_type == "current") {
+                themarker = L.marker(coords, {icon: myIconCurrent}).bindTooltip(" " + coordsObj.stageName + " ") ;
+             } else {
+               themarker = L.marker(coords, {icon: myIcon}).bindTooltip(" " + coordsObj.stageName + " ") ;
+             }
+             markerArray.push(themarker) ;
+             themarker.addTo(mymap);
+
+
+        } ) ;
+        // playerMarker
+        var thePlayerMarker = L.marker(data.playerCoords, {icon: myIconPlayer}).bindTooltip(" Player ") ;
+
+        markerArray.push(thePlayerMarker) ;
+        thePlayerMarker.addTo(mymap);
+    })
+
   </script>
 
-
+  </body>
 
 </html>

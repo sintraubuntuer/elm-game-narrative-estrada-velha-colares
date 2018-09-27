@@ -460,7 +460,7 @@ talkToSintraWiseManEn =
     [ """
 
 Sintra Wise Man is known for being an expert about this region , so you decide to ask him  :
-"Do you know wether this Rua Barbosa du Bocage that starts over here is the famous Estrada Velha de Colares ? ..."
+"Do you know whether this Rua Barbosa du Bocage that starts over here is the famous Estrada Velha de Colares ? ..."
       """
     , """
 Wise Man answers : "Yes , this is in fact the road that heads to  Colares and is known as Estrada Velha de Colares ...."

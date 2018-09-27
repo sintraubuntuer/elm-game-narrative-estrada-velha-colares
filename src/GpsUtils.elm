@@ -1,12 +1,64 @@
-module GpsUtils exposing (..)
+module GpsUtils exposing
+    ( Direction(..)
+    , GeolocationInfo
+    , GpsZone
+    , addLeftZeros
+    , addRightZeros
+    , bearingToDirection
+    , calculateBearing
+    , calculateBearingsFromList
+    , checkIfInDistance
+    , convertDecimalToGps
+    , convertDecimalTupleToGps
+    , directionToString
+    , getCurrentGeoLocationAsText
+    , getCurrentGeoReportAsText
+    , getDistance
+    , getDistanceTo
+    , getDistancesTo
+    , getDistancesToAsText
+    , getMbGpsZoneLatLon
+    , getTextDistancesFromListDistances
+    , haversineInMeters
+    , roundit
+    )
 
-import Geolocation
-import ClientTypes exposing (..)
-import List.Extra
+--import Geolocation
+
 import Dict exposing (Dict)
 
 
-getDistance : Geolocation.Location -> Maybe GpsZone -> Float
+
+--import Types as EngineTypes
+
+
+type alias GeolocationInfo =
+    --Geolocation.Location
+    { latitude : Float
+    , longitude : Float
+    }
+
+
+type alias GpsZone =
+    { needsToBeIn : Bool
+    , lat : Float
+    , lon : Float
+    , mbRadius : Maybe Float
+    }
+
+
+type Direction
+    = North
+    | NorthEast
+    | NorthWest
+    | South
+    | SouthEast
+    | SouthWest
+    | East
+    | West
+
+
+getDistance : GeolocationInfo -> Maybe GpsZone -> Float
 getDistance location mbGpsZone =
     case mbGpsZone of
         Nothing ->
@@ -21,16 +73,16 @@ getDistance location mbGpsZone =
                     0.0
 
 
-getDistanceTo : Geolocation.Location -> ( String, Float, Float ) -> ( String, Float )
+getDistanceTo : GeolocationInfo -> ( String, Float, Float ) -> ( String, Float )
 getDistanceTo location ( name, lat, lon ) =
     let
         theDistance =
             haversineInMeters ( location.latitude, location.longitude ) ( lat, lon )
     in
-        ( name, theDistance )
+    ( name, theDistance )
 
 
-getDistancesTo : Int -> Geolocation.Location -> List (Maybe ( String, Float, Float )) -> List ( String, Float )
+getDistancesTo : Int -> GeolocationInfo -> List (Maybe ( String, Float, Float )) -> List ( String, Float )
 getDistancesTo nrdistances location lmbnamecoordTuples =
     lmbnamecoordTuples
         |> List.map (Maybe.map (\x -> getDistanceTo location x))
@@ -42,18 +94,18 @@ getDistancesTo nrdistances location lmbnamecoordTuples =
 getTextDistancesFromListDistances : Int -> List ( String, Float ) -> String
 getTextDistancesFromListDistances nrdistances ldistances =
     ldistances
-        |> List.map (\( name, distance ) -> " ___DISTANCE_TO___ " ++ name ++ " ___IS___ " ++ toString (round distance) ++ " ___METERS___ ")
+        |> List.map (\( name, distance ) -> " ___DISTANCE_TO___ " ++ name ++ " ___IS___ " ++ String.fromInt (round distance) ++ " ___METERS___ ")
         |> List.take nrdistances
         |> String.join "  \n"
 
 
-getDistancesToAsText : Int -> Geolocation.Location -> List (Maybe ( String, Float, Float )) -> String
+getDistancesToAsText : Int -> GeolocationInfo -> List (Maybe ( String, Float, Float )) -> String
 getDistancesToAsText nrdistances location lmbnamecoordTuples =
     getDistancesTo nrdistances location lmbnamecoordTuples
         |> getTextDistancesFromListDistances nrdistances
 
 
-getCurrentGeoLocationAsText : Maybe Geolocation.Location -> String
+getCurrentGeoLocationAsText : Maybe GeolocationInfo -> String
 getCurrentGeoLocationAsText mbGeolocationInfo =
     case mbGeolocationInfo of
         Nothing ->
@@ -64,7 +116,7 @@ getCurrentGeoLocationAsText mbGeolocationInfo =
             convertDecimalTupleToGps ( gInfo.latitude, gInfo.longitude )
 
 
-getCurrentGeoReportAsText : Dict String ( String, Float, Float ) -> Maybe Geolocation.Location -> List ( String, Float ) -> Int -> String
+getCurrentGeoReportAsText : Dict String ( String, Float, Float ) -> Maybe GeolocationInfo -> List ( String, Float ) -> Int -> String
 getCurrentGeoReportAsText currLocNameAndCoords mbGeolocationInfo lnameDistances nrdistances =
     "  \n"
         ++ getCurrentGeoLocationAsText mbGeolocationInfo
@@ -90,12 +142,14 @@ checkIfInDistance mbGpsZone theDistance defaultDistance =
                 Just radius ->
                     if theDistance <= radius then
                         True
+
                     else
                         False
 
                 Nothing ->
                     if theDistance <= defaultDistance then
                         True
+
                     else
                         False
 
@@ -123,14 +177,14 @@ haversineInMeters ( lat1, lon1 ) ( lat2, lon2 ) =
             degrees (lon2 - lon1)
 
         a =
-            (sin (dLat / 2))
+            sin (dLat / 2)
                 ^ 2
-                + (sin (dLon / 2))
+                + sin (dLon / 2)
                 ^ 2
                 * cos (degrees lat1)
                 * cos (degrees lat2)
     in
-        r * 2 * asin (sqrt a) * 1000
+    r * 2 * asin (sqrt a) * 1000
 
 
 addLeftZeros : Int -> String -> String
@@ -139,6 +193,7 @@ addLeftZeros desiredlength theStr =
         "0"
             ++ theStr
             |> addLeftZeros desiredlength
+
     else
         theStr
 
@@ -149,6 +204,7 @@ addRightZeros desiredlength theStr =
         theStr
             ++ "0"
             |> addRightZeros desiredlength
+
     else
         theStr
 
@@ -164,27 +220,31 @@ roundit nrplaces nr =
                 * toFloat (10 ^ nrplaces)
                 |> round
                 |> toFloat
-                |> toString
+                |> String.fromFloat
                 |> addRightZeros 3
 
         strintVal =
-            toString intVal
+            String.fromInt intVal
     in
-        strintVal ++ "." ++ strdecPlaces
+    strintVal ++ "." ++ strdecPlaces
 
 
 convertDecimalToGps : String -> Float -> String
 convertDecimalToGps theStr theVal =
     let
         charDir =
-            if (theStr == "latitude" && theVal >= 0) then
+            if theStr == "latitude" && theVal >= 0 then
                 "N"
-            else if (theStr == "longitude" && theVal >= 0) then
+
+            else if theStr == "longitude" && theVal >= 0 then
                 "E"
-            else if (theStr == "latitude" && theVal < 0) then
+
+            else if theStr == "latitude" && theVal < 0 then
                 "S"
-            else if (theStr == "longitude" && theVal < 0) then
+
+            else if theStr == "longitude" && theVal < 0 then
                 "W"
+
             else
                 "bad coordinate type"
 
@@ -199,14 +259,15 @@ convertDecimalToGps theStr theVal =
 
         strDeg =
             if theStr == "longitude" then
-                addLeftZeros 3 (toString deg)
+                addLeftZeros 3 (String.fromInt deg)
+
             else
-                toString deg
+                String.fromInt deg
 
         fstr =
-            charDir ++ " " ++ strDeg ++ "º " ++ (roundit 3 minutes)
+            charDir ++ " " ++ strDeg ++ "º " ++ roundit 3 minutes
     in
-        fstr
+    fstr
 
 
 convertDecimalTupleToGps : ( Float, Float ) -> String
@@ -221,7 +282,7 @@ convertDecimalTupleToGps ( decLat, decLon ) =
         fstr =
             lat ++ " , " ++ lon
     in
-        fstr
+    fstr
 
 
 calculateBearing : ( Float, Float ) -> ( Float, Float ) -> Int
@@ -247,16 +308,16 @@ calculateBearing ( lat1, lon1 ) ( lat2, lon2 ) =
                 |> degrees
 
         y =
-            (sin longDiff) * (cos latitude2)
+            sin longDiff * cos latitude2
 
         x =
-            (cos latitude1) * (sin latitude2) - (sin latitude1) * (cos latitude2) * (cos longDiff)
+            cos latitude1 * sin latitude2 - sin latitude1 * cos latitude2 * cos longDiff
     in
-        (atan2 y x)
-            |> toDegrees
-            |> (+) 360
-            |> round
-            |> (\x -> rem x 360)
+    atan2 y x
+        |> toDegrees
+        |> (+) 360
+        |> round
+        |> (\v -> remainderBy 360 v)
 
 
 calculateBearingsFromList : List ( Float, Float ) -> List Int
@@ -266,10 +327,10 @@ calculateBearingsFromList lcoords =
             List.drop 1 lcoords
 
         l1 =
-            List.take ((List.length lcoords) - 1) lcoords
+            List.take (List.length lcoords - 1) lcoords
 
         lzips =
-            List.Extra.zip l1 l2
+            List.map2 Tuple.pair l1 l2
 
         calcBearingsHelper : List ( ( Float, Float ), ( Float, Float ) ) -> List Int
         calcBearingsHelper lc =
@@ -278,6 +339,61 @@ calculateBearingsFromList lcoords =
                     []
 
                 ( ( lat1, lon1 ), ( lat2, lon2 ) ) :: rest ->
-                    (calculateBearing ( lat1, lon1 ) ( lat2, lon2 )) :: (calcBearingsHelper rest)
+                    calculateBearing ( lat1, lon1 ) ( lat2, lon2 ) :: calcBearingsHelper rest
     in
-        calcBearingsHelper lzips
+    calcBearingsHelper lzips
+
+
+bearingToDirection : Float -> Direction
+bearingToDirection angle =
+    if angle >= 22.5 && angle < 67.5 then
+        NorthEast
+
+    else if angle >= 67.5 && angle < 112.5 then
+        East
+
+    else if angle >= 112.5 && angle < 157.5 then
+        SouthEast
+
+    else if angle >= 157.5 && angle < 202.5 then
+        South
+
+    else if angle >= 202.5 && angle < 247.5 then
+        SouthWest
+
+    else if angle >= 247.5 && angle < 292.5 then
+        West
+
+    else if angle >= 292.5 && angle < 337.5 then
+        NorthWest
+
+    else
+        North
+
+
+directionToString : Direction -> String
+directionToString direction =
+    case direction of
+        North ->
+            "North"
+
+        NorthEast ->
+            "NorthEast"
+
+        NorthWest ->
+            "NorthWest"
+
+        South ->
+            "South"
+
+        SouthEast ->
+            "SouthEast"
+
+        SouthWest ->
+            "SouthWest"
+
+        East ->
+            "East"
+
+        West ->
+            "West"

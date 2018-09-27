@@ -1,44 +1,80 @@
-port module Main exposing (..)
-
-import Engine exposing (..)
-import Types as EngineTypes exposing (BackendAnswerStatus(..), AnswerInfo, InteractionExtraInfo, MoreInfoNeeded(..))
-import OurStory.Manifest as Manifest
-import OurStory.Rules as Rules
-import OurStory.Narrative as Narrative
-import Html exposing (..)
-import Html.Attributes exposing (..)
-import Tuple
-import Theme.Layout
-import Theme.AnswerBox as AnswerBox exposing (init, Model)
-import Theme.Settings as Settings
-import Theme.StartScreen
-import Theme.EndScreen
-import ClientTypes exposing (..)
-import TypesUpdateHelper exposing (updateNestedMbInputTextBk, updateNestedBkAnsStatus)
-
+port module Main exposing
+    ( Flags
+    , LgTxt
+    , Model
+    , backendAnswerDecoder
+    , convertToListIdExtraInfo
+    , findEntity
+    , getBackendAnswerInfo
+    , getExtraInfoFromModel
+    , getHistoryFromStorage
+    , getNewModelAndInteractionExtraInfoByEngineUpdate
+    , helperEmptyStringToNothing
+    , init
+    , loaded
+    , main
+    , playerAnswerEncoder
+    , saveHistoryToStorage
+    , saveHistoryToStorageHelper
+    , sendRequestForStoredHistory
+    , subscriptions
+    , textInLanguagesDecoder
+    , update
+    , updateInterExtraInfoWithGeoInfo
+    , view
+    , viewMainGame
+    , viewStartScreen
+    )
 
 --import Audio
+--import Geolocation
 
+import Browser
+import ClientTypes exposing (..)
 import Components exposing (..)
 import Dict exposing (Dict)
-import List.Zipper as Zipper exposing (Zipper)
+import Engine exposing (..)
+import GpsUtils exposing (..)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Http
+import InfoForBkendApiRequests
 import Json.Decode
 import Json.Decode.Pipeline
-import Geolocation
-import Task
-import TranslationHelper exposing (getInLanguage)
-import TypeConverterHelper as Tconverter exposing (..)
-import GpsUtils exposing (..)
-import SomeTests
-import Http
+import Json.Encode
+import Leaflet.Ports
+import Leaflet.Types as TLeaflet
+import List.Zipper as ListZipper
+import OurStory.Manifest as Manifest
+import OurStory.Narrative as Narrative
+import OurStory.Rules as Rules
+import Random
 import Regex
-import Update.Extra
-import InfoForBkendApiRequests
+import SomeTests
+import Task
+import Theme.AnswerBox as AnswerBox exposing (Model, init)
+import Theme.EndScreen
+import Theme.Layout
+import Theme.Settings as Settings
+import Theme.StartScreen
+import TranslationHelper exposing (getInLanguage)
+import Tuple
+import TypeConverterHelper as Tconverter exposing (..)
+import Types as EngineTypes exposing (AnswerInfo, BackendAnswerStatus(..), InteractionExtraInfo, MoreInfoNeeded(..))
+import TypesUpdateHelper exposing (updateNestedBkAnsStatus, updateNestedMbInputTextBk)
 
 
-{- This is the kernel of the whole app.  It glues everything together and handles some logic such as choosing the correct narrative to display.
-   You shouldn't need to change anything in this file, unless you want some kind of different behavior.
+
+-- import Leaflet.Types as TLeaflet exposing (LatLng, ZoomPanOptions, defaultZoomPanOptions)
+--import Update.Extra
+
+
+{-| This is the kernel of the whole app. It glues everything together and handles some logic such as choosing the correct narrative to display.
+You shouldn't need to change anything in this file, unless you want some kind of different behavior.
 -}
+
+
+
 -- MODEL
 
 
@@ -53,14 +89,19 @@ type alias Model =
     , settingsModel : Settings.Model
     , mbSentText : Maybe String
     , alertMessages : List String
-    , geoLocation : Maybe Engine.GeolocationInfo
+    , mbGeoLocation : Maybe GpsUtils.GeolocationInfo
     , geoDistances : List ( String, Float )
     , defaultZoneRadius : Float
     , bkendAnswerStatusDict : Dict String EngineTypes.BackendAnswerStatus
     , loaded : Bool
     , languageStoryLines : Dict String (List StorySnippet)
-    , languageNarrativeContents : Dict String (Dict String (Zipper String))
+    , languageNarrativeContents : Dict String (Dict String (ListZipper.Zipper String))
     , languageAudioContents : Dict String (Dict String ClientTypes.AudioFileInfo)
+    , randomElemsListDesiredSize : Int
+    , lallgeneretedRandomFloats : List Float
+    , bLoadHistoryMode : Bool
+    , mapZoomNumber : Int
+    , mapZoomPanOptions : TLeaflet.ZoomPanOptions
     , displayStartScreen : Bool
     , startScreenInfo : StartScreenInfo
     , displayEndScreen : Bool
@@ -68,21 +109,32 @@ type alias Model =
     }
 
 
+getInteractableInfo : Components.Entity -> Dict String EngineTypes.AttrTypes
+getInteractableInfo interactableEntity =
+    Dict.fromList [ ( "name", Engine.aDictStringString (Components.getDictLgNames (Dict.keys Narrative.initialChoiceLanguages) interactableEntity) ) ]
+
+
 init : Flags -> ( Model, Cmd ClientTypes.Msg )
 init flags =
+    initWithMbPlayerNameAndMbHistoryList flags True [] Nothing []
+
+
+initWithMbPlayerNameAndMbHistoryList : Flags -> Bool -> List Float -> Maybe String -> List ( String, InteractionExtraInfo ) -> ( Model, Cmd ClientTypes.Msg )
+initWithMbPlayerNameAndMbHistoryList flags displayStartScreen_ lPrandomFloats mbPlayerName historyList =
     let
         dictEntities =
             Rules.rules
 
-        ( engineModel, lincidents ) =
+        engineModel =
             Engine.init
-                { items = List.map Tuple.first Manifest.items
-                , locations = List.map Tuple.first Manifest.locations
-                , characters = List.map Tuple.first Manifest.characters
+                { items = List.map (\( id, comp ) -> ( id, getInteractableInfo ( id, comp ) )) Manifest.items
+                , locations = List.map (\( id, comp ) -> ( id, getInteractableInfo ( id, comp ) )) Manifest.locations
+                , characters = List.map (\( id, comp ) -> ( id, getInteractableInfo ( id, comp ) )) Manifest.characters
                 }
+                Manifest.playerId
                 Narrative.initialChoiceLanguages
-                (Dict.map (curry getRuleData) dictEntities)
-                |> Engine.changeWorld Rules.startingState
+                (Dict.map (\a b -> getRuleData ( a, b )) dictEntities)
+                []
 
         answerboxmodel =
             AnswerBox.init
@@ -93,52 +145,91 @@ init flags =
         displaylanguage =
             settingsmodel.displayLanguage
 
-        startLincidents =
-            [ ( "startingState ", lincidents ) ]
-
-        allPossibleIncidentsAboutCwcmds =
-            SomeTests.getAllPossibleIncidentsAboutCwcmds engineModel startLincidents
-
         debugMode_ =
             False
-    in
-        ( { engineModel = engineModel
-          , debugMode = debugMode_
-          , baseImgUrl = flags.baseImgUrl
-          , baseSoundUrl = flags.baseSoundUrl
-          , itemsLocationsAndCharacters = (Manifest.items ++ Manifest.locations ++ Manifest.characters)
-          , playerName = "___investigator___" -- default
-          , answerBoxModel = answerboxmodel
-          , settingsModel = settingsmodel
-          , mbSentText = Nothing
-          , alertMessages =
-                if debugMode_ then
-                    allPossibleIncidentsAboutCwcmds
-                else
-                    []
-          , geoLocation = Nothing
-          , geoDistances = []
-          , defaultZoneRadius = 50.0
-          , bkendAnswerStatusDict =
+
+        newModel =
+            { engineModel = engineModel
+            , debugMode = debugMode_
+            , baseImgUrl = flags.baseImgUrl
+            , baseSoundUrl = flags.baseSoundUrl
+            , itemsLocationsAndCharacters = Manifest.items ++ Manifest.locations ++ Manifest.characters
+            , playerName = mbPlayerName |> Maybe.withDefault "___investigator___" -- default
+            , answerBoxModel = answerboxmodel
+            , settingsModel = settingsmodel
+            , mbSentText = Nothing
+            , alertMessages = []
+            , mbGeoLocation = Nothing
+            , geoDistances = []
+            , defaultZoneRadius = 50.0
+            , bkendAnswerStatusDict =
                 (Manifest.items ++ Manifest.locations ++ Manifest.characters)
                     |> List.map Tuple.first
                     |> List.map (\interactableId -> ( interactableId, EngineTypes.NoInfoYet ))
                     |> Dict.fromList
+            , loaded = True
+            , languageStoryLines = Narrative.startingNarratives
 
-          --, loaded = False
-          , loaded = True
-          , languageStoryLines = Narrative.startingNarratives
+            -- dictionary that associates ruleIds to a dict languageId (narrative : ZipperString)
+            , languageNarrativeContents = Dict.map (\a b -> getLanguagesNarrativeDict ( a, b )) dictEntities
+            , languageAudioContents = Dict.map (\a b -> getLanguagesAudioDict ( a, b )) dictEntities
+            , randomElemsListDesiredSize = 100
+            , lallgeneretedRandomFloats = []
+            , bLoadHistoryMode = False
+            , mapZoomNumber = 21
+            , mapZoomPanOptions = TLeaflet.defaultZoomPanOptions
+            , displayStartScreen = displayStartScreen_
+            , startScreenInfo = Narrative.startScreenInfo
+            , displayEndScreen = False
+            , endScreenInfo = Narrative.endScreenInfo
+            }
+                |> mbSetPlayerName mbPlayerName
+    in
+    if List.length historyList == 0 then
+        ( newModel, cmdForGeneratingListOfRandomFloats newModel.randomElemsListDesiredSize )
 
-          -- dictionary that associates ruleIds to a dict languageId (narrative : ZipperString)
-          , languageNarrativeContents = Dict.map (curry getLanguagesNarrativeDict) dictEntities
-          , languageAudioContents = Dict.map (curry getLanguagesAudioDict) dictEntities
-          , displayStartScreen = True
-          , startScreenInfo = Narrative.startScreenInfo
-          , displayEndScreen = False
-          , endScreenInfo = Narrative.endScreenInfo
-          }
-        , Cmd.none
-        )
+    else
+        getNewModelAfterGameStartRandomElems lPrandomFloats newModel
+            |> update (ProcessLoadHistory historyList newModel.settingsModel)
+
+
+cmdForGeneratingListOfRandomFloats : Int -> Cmd ClientTypes.Msg
+cmdForGeneratingListOfRandomFloats lsize =
+    Random.generate NewRandomElemsAtGameStart (Random.list lsize (Random.float 0 1))
+
+
+getNewModelAfterGameStartRandomElems : List Float -> Model -> Model
+getNewModelAfterGameStartRandomElems lfloats model =
+    let
+        engineModel_ =
+            Engine.setRandomFloatElems lfloats model.engineModel
+
+        ( newEngineModel, lincidents ) =
+            engineModel_
+                |> Engine.changeWorld Rules.startingState
+
+        startLincidents =
+            [ ( "startingState ", lincidents ) ]
+
+        allPossibleIncidentsAboutCwcmds =
+            SomeTests.getAllPossibleIncidentsAboutCwcmds newEngineModel startLincidents
+
+        alertMessages_ =
+            if model.debugMode then
+                allPossibleIncidentsAboutCwcmds
+
+            else
+                []
+
+        newModel =
+            { model
+                | engineModel = newEngineModel
+                , lallgeneretedRandomFloats = lfloats
+                , alertMessages = model.alertMessages ++ alertMessages_
+            }
+    in
+    --update (ProcessLoadHistory historyList model.settingsModel) newModel
+    newModel
 
 
 findEntity : Model -> String -> Entity
@@ -147,6 +238,51 @@ findEntity model id =
         |> List.filter (Tuple.first >> (==) id)
         |> List.head
         |> Maybe.withDefault (entity id)
+
+
+mbSetPlayerName : Maybe String -> Model -> Model
+mbSetPlayerName mbPlayerName model =
+    case mbPlayerName of
+        Nothing ->
+            model
+
+        Just playerName ->
+            setPlayerName playerName model
+
+
+setPlayerName : String -> Model -> Model
+setPlayerName playerNameStr model =
+    if playerNameStr == "" then
+        model
+
+    else
+        let
+            newPlayerOneEntity =
+                findEntity model "playerOne"
+                    |> Components.updateAllLgsDisplayName playerNameStr
+
+            newEntities =
+                model.itemsLocationsAndCharacters
+                    |> List.map
+                        (\x ->
+                            if Tuple.first x == "playerOne" then
+                                newPlayerOneEntity
+
+                            else
+                                x
+                        )
+
+            newAnswerBoxModel =
+                AnswerBox.update "" model.answerBoxModel
+
+            newModel =
+                { model
+                    | itemsLocationsAndCharacters = newEntities
+                    , playerName = playerNameStr
+                    , answerBoxModel = newAnswerBoxModel
+                }
+        in
+        newModel
 
 
 
@@ -172,31 +308,11 @@ update msg model =
                 StartMainGameNewPlayerName playerNameStr ->
                     if playerNameStr /= "" then
                         let
-                            newPlayerOneEntity =
-                                findEntity model "playerOne"
-                                    |> Components.updateAllLgsDisplayName playerNameStr
-
-                            newEntities =
-                                model.itemsLocationsAndCharacters
-                                    |> List.map
-                                        (\x ->
-                                            if ((Tuple.first x) == "playerOne") then
-                                                newPlayerOneEntity
-                                            else
-                                                x
-                                        )
-
-                            newAnswerBoxModel =
-                                AnswerBox.update "" model.answerBoxModel
-
                             newModel =
-                                { model
-                                    | itemsLocationsAndCharacters = newEntities
-                                    , playerName = playerNameStr
-                                    , answerBoxModel = newAnswerBoxModel
-                                }
+                                setPlayerName playerNameStr model
                         in
-                            update StartMainGame newModel
+                        update StartMainGame newModel
+
                     else
                         update StartMainGame model
 
@@ -212,7 +328,7 @@ update msg model =
                                 , answerBoxModel = newAnswerBoxModel
                             }
                     in
-                        update (Interact interactableId) newModel
+                    update (Interact interactableId) newModel
 
                 Interact interactableId ->
                     let
@@ -220,10 +336,11 @@ update msg model =
                             findEntity model interactableId |> getNeedsGpsCoords
 
                         mbGpsZone =
-                            findEntity model interactableId |> getNeedsToBeInGpsZone
+                            findEntity model interactableId
+                                |> getNeedsToBeInGpsZone
 
                         needsToBeInZone =
-                            (Maybe.withDefault False (Maybe.map .needsToBeIn mbGpsZone))
+                            Maybe.withDefault False (Maybe.map .needsToBeIn mbGpsZone)
                                 && not model.settingsModel.dontNeedToBeInZone
 
                         interactionExtraInfo =
@@ -236,59 +353,93 @@ update msg model =
                             }
 
                         ( newModel, cmds ) =
-                            if (needCoords && not needsToBeInZone) then
-                                ( nModel, getNewCoords interactableId Nothing False interactionExtraInfo )
-                            else if (needsToBeInZone) then
-                                ( nModel, getNewCoords interactableId mbGpsZone True interactionExtraInfo )
+                            if needCoords && not needsToBeInZone then
+                                ( nModel, sendRequestForGeolocation interactableId )
+
+                            else if needsToBeInZone then
+                                ( nModel, sendRequestForGeolocation interactableId )
+
                             else
                                 update (InteractStepTwo interactableId interactionExtraInfo) nModel
                     in
-                        ( newModel, cmds )
+                    ( newModel, cmds )
 
-                NewCoordsForInterId interactableId mbGpsZone needsToBeInZone interactionExtraInfo (Ok location) ->
-                    let
-                        theDistance =
-                            getDistance location mbGpsZone
+                NewCoordsForInterId locationAndInteractableIdRecord ->
+                    if locationAndInteractableIdRecord.latitude == -999 && locationAndInteractableIdRecord.longitude == -999 then
+                        update (NewCoordsForInterIdFailed locationAndInteractableIdRecord.interactableId) model
 
-                        distanceToClosestLocations =
-                            Manifest.locations
-                                |> List.map (getDictLgNamesAndCoords [ model.settingsModel.displayLanguage ])
-                                |> List.map (Dict.get model.settingsModel.displayLanguage)
-                                |> GpsUtils.getDistancesTo 1000 location
+                    else
+                        let
+                            ( interactableId, latitude, longitude ) =
+                                ( locationAndInteractableIdRecord.interactableId, locationAndInteractableIdRecord.latitude, locationAndInteractableIdRecord.longitude )
 
-                        inDistance =
-                            checkIfInDistance mbGpsZone theDistance model.defaultZoneRadius
+                            location =
+                                GpsUtils.GeolocationInfo latitude longitude
 
-                        newModel =
-                            { model
-                                | geoLocation = Just location
-                                , geoDistances = distanceToClosestLocations
-                            }
+                            mbGpsZone =
+                                findEntity model interactableId |> getNeedsToBeInGpsZone
 
-                        updatedInteractionExtraInfo =
-                            updateInterExtraInfoWithGeoInfo interactionExtraInfo model
-                    in
-                        if (not needsToBeInZone || (needsToBeInZone && inDistance)) then
+                            needsToBeInZone =
+                                Maybe.withDefault False (Maybe.map .needsToBeIn mbGpsZone)
+                                    && not model.settingsModel.dontNeedToBeInZone
+
+                            interactionExtraInfo =
+                                getExtraInfoFromModel model interactableId
+
+                            theDistance =
+                                getDistance location mbGpsZone
+
+                            distanceToClosestLocations =
+                                Manifest.locations
+                                    |> List.map (getDictLgNamesAndCoords [ model.settingsModel.displayLanguage ])
+                                    |> List.map (Dict.get model.settingsModel.displayLanguage)
+                                    |> GpsUtils.getDistancesTo 1000 location
+
+                            inDistance =
+                                checkIfInDistance mbGpsZone theDistance model.defaultZoneRadius
+
+                            newModel =
+                                { model
+                                    | mbGeoLocation = Just location
+                                    , geoDistances = distanceToClosestLocations
+                                }
+
+                            updatedInteractionExtraInfo =
+                                updateInterExtraInfoWithGeoInfo interactionExtraInfo model
+                        in
+                        if not needsToBeInZone || (needsToBeInZone && inDistance) then
                             update (InteractStepTwo interactableId updatedInteractionExtraInfo) newModel
+
                         else
                             update (NotInTheZone interactableId mbGpsZone location theDistance) newModel
 
-                NewCoordsForInterId interactableId mbGpsZone needsToBeInZone interactionExtraInfo (Err err) ->
+                NewCoordsForInterIdFailed interactableId ->
                     let
                         newModel =
                             { model
-                                | geoLocation = Nothing
+                                | mbGeoLocation = Nothing
                                 , geoDistances = []
                                 , alertMessages = [ "Failed to get gps coordinates" ]
                             }
 
+                        mbGpsZone =
+                            findEntity model interactableId |> getNeedsToBeInGpsZone
+
+                        needsToBeInZone =
+                            Maybe.withDefault False (Maybe.map .needsToBeIn mbGpsZone)
+                                && not model.settingsModel.dontNeedToBeInZone
+
+                        interactionExtraInfo =
+                            getExtraInfoFromModel model interactableId
+
                         updatedInteractionExtraInfo =
                             updateInterExtraInfoWithGeoInfo interactionExtraInfo model
                     in
-                        if (not needsToBeInZone) then
-                            update (InteractStepTwo interactableId updatedInteractionExtraInfo) newModel
-                        else
-                            ( newModel, Cmd.none )
+                    if not needsToBeInZone then
+                        update (InteractStepTwo interactableId updatedInteractionExtraInfo) newModel
+
+                    else
+                        ( newModel, Cmd.none )
 
                 NotInTheZone interactableId mbGpsZone location theDistance ->
                     let
@@ -309,20 +460,21 @@ update msg model =
                             , "You are at : " ++ GpsUtils.convertDecimalTupleToGps ( location.latitude, location.longitude )
                             , "Please move closer to " ++ zoneCoordsStr
                             , "Your distance to where you should be is : "
-                                ++ toString (round theDistance)
+                                ++ String.fromInt (round theDistance)
                                 ++ " meters"
                             ]
 
                         newModel =
                             { model | alertMessages = linfoStr }
                     in
-                        ( newModel, Cmd.none )
+                    ( newModel, Cmd.none )
 
                 InteractStepTwo interactableId interactionExtraInfo ->
                     -- only allow interaction if this interactable isnt waiting for some backend answer confirmation
-                    if (Dict.get interactableId model.bkendAnswerStatusDict == Just EngineTypes.WaitingForInfoRequested) then
+                    if Dict.get interactableId model.bkendAnswerStatusDict == Just EngineTypes.WaitingForInfoRequested then
                         -- Interactable is awaiting for some backend confirmation. No interaction possible at this time
                         ( { model | alertMessages = "Please Wait ... \n" :: model.alertMessages }, Cmd.none )
+
                     else
                         let
                             engResp1 =
@@ -345,60 +497,64 @@ update msg model =
                             newModel =
                                 { model | engineModel = newEngineModel }
                         in
-                            case infoNeeded of
-                                NoInfoNeeded ->
+                        case infoNeeded of
+                            NoInfoNeeded ->
+                                let
+                                    ( newEngineModel2, lInteractionIncidents ) =
+                                        case Engine.update (CompleteTheUpdate interactableId extraInfoWithPendingChanges) newEngineModel of
+                                            EngineUpdateCompleteResponse ( newEngineModel2_, lInteractionIncidents_ ) ->
+                                                ( newEngineModel2_, lInteractionIncidents_ )
+
+                                            _ ->
+                                                -- pattern matching needs to deal with all cases but this can't really happen
+                                                ( newEngineModel, [] )
+
+                                    interactionIncidents =
+                                        if model.debugMode then
+                                            lInteractionIncidents
+
+                                        else
+                                            []
+                                in
+                                update (InteractStepThree interactableId newInteractionExtraInfo)
+                                    { newModel
+                                        | engineModel = newEngineModel2
+                                        , bkendAnswerStatusDict = Dict.update interactableId (\x -> Just EngineTypes.NoInfoYet) model.bkendAnswerStatusDict
+                                        , alertMessages = interactionIncidents
+                                    }
+
+                            AnswerInfoToQuestionNeeded strUrl ->
+                                if interactionExtraInfo.bkAnsStatus == NoInfoYet then
                                     let
-                                        ( newEngineModel2, lInteractionIncidents ) =
-                                            case Engine.update (CompleteTheUpdate interactableId extraInfoWithPendingChanges) newEngineModel of
-                                                EngineUpdateCompleteResponse ( newEngineModel2_, lInteractionIncidents_ ) ->
-                                                    ( newEngineModel2_, lInteractionIncidents_ )
+                                        -- clear the text box so the text can't be used by any other interactable.
+                                        newAnswerBoxModel =
+                                            AnswerBox.update "" model.answerBoxModel
 
-                                                _ ->
-                                                    -- pattern matching needs to deal with all cases but this can't really happen
-                                                    ( newEngineModel, [] )
+                                        newInteractionExtraInfoTwo =
+                                            { newInteractionExtraInfo | bkAnsStatus = EngineTypes.WaitingForInfoRequested }
 
-                                        interactionIncidents =
-                                            if model.debugMode then
-                                                lInteractionIncidents
-                                            else
-                                                []
-                                    in
-                                        update (InteractStepThree interactableId newInteractionExtraInfo)
-                                            { newModel
-                                                | engineModel = newEngineModel2
-                                                , bkendAnswerStatusDict = Dict.update interactableId (\x -> Just EngineTypes.NoInfoYet) model.bkendAnswerStatusDict
-                                                , alertMessages = interactionIncidents
+                                        newExtraInfoWithPendingChanges : EngineTypes.ExtraInfoWithPendingChanges
+                                        newExtraInfoWithPendingChanges =
+                                            { interactionExtraInfo = newInteractionExtraInfoTwo
+                                            , pendingChanges = extraInfoWithPendingChanges.pendingChanges
+                                            , mbQuasiCwCmdWithBk = extraInfoWithPendingChanges.mbQuasiCwCmdWithBk
                                             }
 
-                                AnswerInfoToQuestionNeeded strUrl ->
-                                    if interactionExtraInfo.bkAnsStatus == NoInfoYet then
-                                        let
-                                            -- clear the text box so the text can't be used by any other interactable.
-                                            newAnswerBoxModel =
-                                                AnswerBox.update "" model.answerBoxModel
+                                        getTheUrl strUrl_ =
+                                            strUrl_
 
-                                            newInteractionExtraInfoTwo =
-                                                { newInteractionExtraInfo | bkAnsStatus = EngineTypes.WaitingForInfoRequested }
+                                        -- ++ Maybe.withDefault "" interactionExtraInfo.mbInputTextForBackend ++ "/"
+                                    in
+                                    ( { newModel
+                                        | bkendAnswerStatusDict = Dict.update interactableId (\x -> Just EngineTypes.WaitingForInfoRequested) model.bkendAnswerStatusDict
+                                        , alertMessages = [ "___Checking_Answer___" ]
+                                        , answerBoxModel = newAnswerBoxModel
+                                      }
+                                    , getBackendAnswerInfo interactableId newExtraInfoWithPendingChanges (getTheUrl strUrl)
+                                    )
 
-                                            newExtraInfoWithPendingChanges : EngineTypes.ExtraInfoWithPendingChanges
-                                            newExtraInfoWithPendingChanges =
-                                                { interactionExtraInfo = newInteractionExtraInfoTwo
-                                                , pendingChanges = extraInfoWithPendingChanges.pendingChanges
-                                                , mbQuasiCwCmdWithBk = extraInfoWithPendingChanges.mbQuasiCwCmdWithBk
-                                                }
-
-                                            getTheUrl strUrl =
-                                                strUrl ++ Maybe.withDefault "" interactionExtraInfo.mbInputTextForBackend ++ "/"
-                                        in
-                                            ( { newModel
-                                                | bkendAnswerStatusDict = Dict.update interactableId (\x -> Just EngineTypes.WaitingForInfoRequested) model.bkendAnswerStatusDict
-                                                , alertMessages = [ "___Checking_Answer___" ]
-                                                , answerBoxModel = newAnswerBoxModel
-                                              }
-                                            , getBackendAnswerInfo interactableId newExtraInfoWithPendingChanges (getTheUrl strUrl)
-                                            )
-                                    else
-                                        ( model, Cmd.none )
+                                else
+                                    ( model, Cmd.none )
 
                 AnswerChecked interactableId extraInfoWithPendingChanges (Ok bresp) ->
                     let
@@ -414,8 +570,7 @@ update msg model =
                         ( newInteractionExtraInfo_, newModel ) =
                             getNewModelAndInteractionExtraInfoByEngineUpdate interactableId newExtraInfoWithPendingChanges nModel
                     in
-                        --update (InteractStepTwo interactableId newInteractionExtraInfo) newModel
-                        update (InteractStepThree interactableId newInteractionExtraInfo_) newModel
+                    update (InteractStepThree interactableId newInteractionExtraInfo_) newModel
 
                 AnswerChecked interactableId extraInfoWithPendingChanges (Err error) ->
                     let
@@ -431,8 +586,7 @@ update msg model =
                         ( newInteractionExtraInfo_, newModel ) =
                             getNewModelAndInteractionExtraInfoByEngineUpdate interactableId newExtraInfoWithPendingChanges nModel
                     in
-                        --update (InteractStepTwo interactableId newInteractionExtraInfo) newModel
-                        update (InteractStepThree interactableId newInteractionExtraInfo_) newModel
+                    update (InteractStepThree interactableId newInteractionExtraInfo_) newModel
 
                 InteractStepThree interactableId interactionExtraInfo ->
                     let
@@ -446,12 +600,13 @@ update msg model =
                             model.engineModel
 
                         {- Helper function  called by narrativesForThisInteraction -}
-                        getTheNarrativeHeader languageId =
+                        getTheNarrativeHeaderAndIncident : String -> ( String, String )
+                        getTheNarrativeHeaderAndIncident languageId =
                             Engine.getInteractableAttribute "narrativeHeader" interactableId newEngineModel
                                 |> Tconverter.mbAttributeToString model.debugMode
-                                |> String.split " "
-                                |> List.map (\x -> getInLanguage languageId x)
-                                |> String.join " "
+                                |> (\( x, y ) -> ( String.split " " x, y ))
+                                |> (\( ls, y ) -> ( List.map (\x -> getInLanguage languageId x) ls, y ))
+                                |> (\( ls, y ) -> ( String.join " " ls, y ))
 
                         {- Helper function called by  narrativesForThisInteraction -}
                         getTheWrittenContent languageId =
@@ -462,75 +617,134 @@ update msg model =
                                 |> String.join " "
 
                         {- Helper function called by  narrativesForThisInteraction -}
-                        isLastZip : Zipper String -> Bool
+                        isLastZip : ListZipper.Zipper String -> Bool
                         isLastZip val =
-                            if (Zipper.next val == Nothing) then
+                            if ListZipper.next val == Nothing then
                                 True
+
                             else
                                 False
 
-                        additionalTextDict =
-                            -- additionalTextDict
+                        ( additionalTextDict, incidentOnGetAdditionalTextDict ) =
                             Engine.getInteractableAttribute "additionalTextDict" interactableId model.engineModel
-                                |> Tconverter.mbAttributeToDictStringString model.debugMode
+                                |> Tconverter.mbAttributeToDictStringListString model.debugMode
 
                         {- Helper function called by  narrativesForThisInteraction -}
-                        wrapWithHeaderWrittenContentAndAdditionalText : String -> String -> String
+                        wrapWithHeaderWrittenContentAndAdditionalText : String -> String -> ( String, String )
                         wrapWithHeaderWrittenContentAndAdditionalText lgId mainContent =
-                            getTheNarrativeHeader lgId
+                            let
+                                ( header, incident ) =
+                                    getTheNarrativeHeaderAndIncident lgId
+                            in
+                            ( header
                                 ++ ("\n" ++ mainContent)
                                 ++ ("\n" ++ getTheWrittenContent lgId)
                                 ++ "  \n"
-                                ++ (Dict.get lgId additionalTextDict |> Maybe.withDefault "")
+                                ++ (Dict.get lgId additionalTextDict |> Maybe.withDefault [ "" ] |> String.join " ,  \n  ")
+                            , incident
+                            )
 
                         temporaryHackToSubstitueImgUrl : String -> String -> String
                         temporaryHackToSubstitueImgUrl baseImgUrl theStr =
                             if baseImgUrl /= "" then
-                                Regex.replace Regex.All (Regex.regex "\\(img\\/") (\_ -> "(" ++ baseImgUrl) theStr
+                                --Regex.replace Regex.All (Regex.regex "\\(img\\/") (\_ -> "(" ++ baseImgUrl) theStr
+                                regexUserReplace "\\(img\\/" (\_ -> "(" ++ baseImgUrl) theStr
+
                             else
                                 theStr
 
-                        mbsuggestInteractionId : Maybe String
-                        mbsuggestInteractionId =
+                        getMbsuggestInteractionId : ( Maybe String, String )
+                        getMbsuggestInteractionId =
                             Engine.getInteractableAttribute "suggestedInteraction" interactableId model.engineModel
                                 |> Tconverter.mbAttributeToMbString model.debugMode
 
+                        ( mbsuggestInteractionId, incidentOnGetsuggestedInteraction ) =
+                            getMbsuggestInteractionId
+
+                        suggestInteractionCaption : String -> String
+                        suggestInteractionCaption lgId =
+                            Engine.getInteractableAttribute "suggestedInteractionCaption" interactableId newEngineModel
+                                |> Tconverter.mbAttributeToDictStringString model.debugMode
+                                |> (\( x, y ) -> Dict.get lgId x)
+                                |> Maybe.withDefault (getInLanguage lgId "___SUGGESTED_INTERACTION___")
+
+                        ( theNarratives, lincidentsOnNarratives ) =
+                            let
+                                dict1Temp =
+                                    -- is a Dict String (String , Bool , String ) last String is an incident that might have occurred
+                                    maybeMatchedRuleId
+                                        |> Maybe.andThen (\ruleId -> Dict.get ruleId model.languageNarrativeContents)
+                                        |> Maybe.withDefault Dict.empty
+                                        |> Dict.map
+                                            (\lgId val ->
+                                                (ListZipper.current val
+                                                    |> temporaryHackToSubstitueImgUrl model.baseImgUrl
+                                                    |> wrapWithHeaderWrittenContentAndAdditionalText lgId
+                                                )
+                                                    |> (\( x, y ) -> ( x, isLastZip val, y ))
+                                            )
+
+                                dictFromTemp thedict =
+                                    thedict
+                                        |> Dict.map
+                                            (\lgId val ->
+                                                let
+                                                    ( x, y, z ) =
+                                                        val
+                                                in
+                                                ( x, y )
+                                            )
+
+                                getIncidentsOnDict thedict =
+                                    Dict.foldl
+                                        (\key val acc ->
+                                            let
+                                                ( x, y, incidentmsg ) =
+                                                    val
+                                            in
+                                            incidentmsg :: acc
+                                        )
+                                        []
+                                        thedict
+
+                                dict2Temp =
+                                    findEntity model interactableId
+                                        |> getDictLgDescriptions Narrative.desiredLanguages
+                                        |> Dict.map (\lgId val -> wrapWithHeaderWrittenContentAndAdditionalText lgId val |> (\( x, y ) -> ( x, True, y )))
+
+                                incidentsOnDict1 =
+                                    getIncidentsOnDict dict1Temp
+
+                                dict1 =
+                                    dictFromTemp dict1Temp
+
+                                incidentsOnDict2 =
+                                    getIncidentsOnDict dict2Temp
+
+                                dict2 =
+                                    dictFromTemp dict2Temp
+                            in
+                            ( Components.mergeDicts dict2 dict1, incidentsOnDict1 ++ incidentsOnDict2 )
+
                         {- If the engine found a matching rule, look up the narrative content component for that rule if possible.  The description from the display info component for the entity that was interacted with is used as a default. -}
                         narrativesForThisInteraction =
-                            { interactableNames = findEntity model interactableId |> getDictLgNames (Narrative.desiredLanguages)
+                            { interactableNames =
+                                findEntity model interactableId
+                                    |> getDictLgNames Narrative.desiredLanguages
                             , interactableCssSelector = findEntity model interactableId |> getClassName
                             , narratives =
-                                -- is a Dict String (String , Bool)
-                                let
-                                    dict1 =
-                                        (maybeMatchedRuleId
-                                            |> Maybe.andThen (\ruleId -> Dict.get ruleId model.languageNarrativeContents)
-                                            |> Maybe.withDefault Dict.empty
-                                            |> Dict.map
-                                                (\lgId val ->
-                                                    ( Zipper.current val
-                                                        |> temporaryHackToSubstitueImgUrl model.baseImgUrl
-                                                        |> wrapWithHeaderWrittenContentAndAdditionalText lgId
-                                                    , isLastZip val
-                                                    )
-                                                )
-                                        )
-
-                                    dict2 =
-                                        findEntity model interactableId
-                                            |> getDictLgDescriptions (Narrative.desiredLanguages)
-                                            |> Dict.map (\lgId val -> ( wrapWithHeaderWrittenContentAndAdditionalText lgId val, True ))
-                                in
-                                    Components.mergeDicts dict2 dict1
+                                theNarratives
                             , audios =
                                 maybeMatchedRuleId
                                     |> Maybe.andThen (\ruleId -> Dict.get ruleId model.languageAudioContents)
                                     |> Maybe.withDefault Dict.empty
                                     |> Dict.map (\lgId val -> { val | fileName = model.baseSoundUrl ++ val.fileName })
                             , mbSuggestedInteractionId = mbsuggestInteractionId
+                            , suggestedInteractionCaption = \lgId -> suggestInteractionCaption lgId
                             , suggestedInteractionNameDict =
                                 if mbsuggestInteractionId /= Nothing then
-                                    findEntity model (Maybe.withDefault "" mbsuggestInteractionId) |> getDictLgNames (Narrative.desiredLanguages)
+                                    findEntity model (Maybe.withDefault "" mbsuggestInteractionId) |> getDictLgNames Narrative.desiredLanguages
+
                                 else
                                     Dict.empty
                             }
@@ -538,14 +752,14 @@ update msg model =
                         {- If a rule matched, attempt to move to the next associated narrative content for next time.
                            This is a helper function used in updateNarrativeLgsDict in a Dict.map
                         -}
-                        updateNarrativeContent : Maybe (Zipper String) -> Maybe (Zipper String)
+                        updateNarrativeContent : Maybe (ListZipper.Zipper String) -> Maybe (ListZipper.Zipper String)
                         updateNarrativeContent =
-                            Maybe.map (\narrative -> Zipper.next narrative |> Maybe.withDefault narrative)
+                            Maybe.map (\narrative -> ListZipper.next narrative |> Maybe.withDefault narrative)
 
                         {- If a rule matched, attempt to move to the next associated narrative content for next time.
                            This is a helper function used by  Dict.update in updatedContent
                         -}
-                        updateNarrativeLgsDict : Maybe (Dict String (Zipper String)) -> Maybe (Dict String (Zipper String))
+                        updateNarrativeLgsDict : Maybe (Dict String (ListZipper.Zipper String)) -> Maybe (Dict String (ListZipper.Zipper String))
                         updateNarrativeLgsDict mbDict =
                             case mbDict of
                                 Just dict ->
@@ -575,9 +789,9 @@ update msg model =
                                     Tuple.second tup
 
                                 mbNewval =
-                                    Just (newStorySnippet :: (Maybe.withDefault [] mbExistingStorySnippets))
+                                    Just (newStorySnippet :: Maybe.withDefault [] mbExistingStorySnippets)
                             in
-                                Dict.update languageId (\mbval -> mbNewval) storyLinesDict
+                            Dict.update languageId (\mbval -> mbNewval) storyLinesDict
 
                         {- updates the languages StoryLines dict with the narrative contents ( in several languages )
                            for this interaction
@@ -597,99 +811,162 @@ update msg model =
                                                             |> Maybe.withDefault (Maybe.withDefault "noName" (Dict.get "en" nfti.interactableNames))
                                                   , interactableId = interactableId
                                                   , isWritable =
-                                                        (Engine.isWritable interactableId model.engineModel
+                                                        Engine.isWritable interactableId model.engineModel
                                                             && (interactionExtraInfo.currentLocation
                                                                     == Engine.getCurrentLocation model.engineModel
                                                                )
-                                                        )
                                                   , interactableCssSelector = nfti.interactableCssSelector
                                                   , narrative =
-                                                        (Dict.get lgId nfti.narratives)
+                                                        Dict.get lgId nfti.narratives
                                                             |> Maybe.map Tuple.first
                                                             |> Maybe.withDefault ""
                                                   , mbAudio = Dict.get lgId nfti.audios
                                                   , mbSuggestedInteractionId = nfti.mbSuggestedInteractionId
+                                                  , suggestedInteractionCaption = nfti.suggestedInteractionCaption lgId
                                                   , mbSuggestedInteractionName = Dict.get lgId nfti.suggestedInteractionNameDict
                                                   , isLastInZipper =
-                                                        (Dict.get lgId nfti.narratives)
+                                                        Dict.get lgId nfti.narratives
                                                             |> Maybe.map Tuple.second
                                                             |> Maybe.withDefault True
                                                   }
                                                 )
                                             )
                             in
-                                List.foldl (\x y -> mergeToDictStoryLine x y) model.languageStoryLines llgssnippets
+                            List.foldl (\x y -> mergeToDictStoryLine x y) model.languageStoryLines llgssnippets
 
                         -- after an interaction clear the TextBox
                         newAnswerBoxModel =
                             AnswerBox.update "" model.answerBoxModel
 
                         getAlertMessage1 =
-                            case (Dict.get displayLanguage narrativesForThisInteraction.narratives) of
+                            case Dict.get displayLanguage narrativesForThisInteraction.narratives of
                                 Nothing ->
                                     [ "No narrative content for this interaction in the current language. Maybe you want to try channging language !" ]
 
                                 _ ->
                                     []
 
-                        getAlertMessage2 =
-                            Engine.getInteractableAttribute "warningMessage" interactableId model.engineModel
-                                |> Tconverter.mbAttributeToDictStringString model.debugMode
+                        ( getAlertMessage2, incidentOnGetAlertMessage2 ) =
+                            let
+                                ( thedict, incidentOnGetDict ) =
+                                    Engine.getInteractableAttribute "warningMessage" interactableId model.engineModel
+                                        |> Tconverter.mbAttributeToDictStringListString model.debugMode
+                            in
+                            ( thedict
                                 |> Dict.get displayLanguage
-                                |> Maybe.withDefault ""
-                                |> (\x ->
-                                        if x /= "" then
-                                            (x :: [])
-                                        else
-                                            []
-                                   )
+                                |> Maybe.withDefault [ "" ]
+                            , incidentOnGetDict
+                            )
 
                         --updateChoiceLanguages
                         newSettingsModel =
                             Settings.update (ClientTypes.SetAvailableLanguages (getChoiceLanguages newEngineModel)) model.settingsModel
 
                         -- check if ended
-                        hasEnded =
+                        ( hasEnded, incidentOnHasEndedConversion ) =
                             Engine.getInteractableAttribute "gameHasEnded" "gameStateItem" model.engineModel
                                 |> Tconverter.mbAttributeToBool model.debugMode
 
                         newSettingsModel2 =
-                            if (hasEnded && not model.settingsModel.showExitToFinalScreenButton) then
-                                Settings.update (ClientTypes.SettingsShowExitToFinalScreenButton) newSettingsModel
+                            if hasEnded && not model.settingsModel.showExitToFinalScreenButton then
+                                Settings.update ClientTypes.SettingsShowExitToFinalScreenButton newSettingsModel
+
                             else
                                 newSettingsModel
+
+                        exitsNamesAndCoords =
+                            Engine.getCurrentLocation model.engineModel
+                                |> findEntity model
+                                |> Components.getExits
+                                |> List.map (\( direction, id ) -> id)
+                                |> List.map (\id -> findEntity model id)
+                                |> List.map (getDictLgNamesAndCoords Narrative.desiredLanguages)
+                                |> List.map (\dict -> Dict.get model.settingsModel.displayLanguage dict |> Maybe.map (\( name, lat, lng ) -> { stageName = name, coords = ( lat, lng ), marker_type = "connecting" }))
+                                |> List.filterMap (\x -> x)
+
+                        mbCurrentStageNameAndCoords =
+                            Engine.getCurrentLocation model.engineModel
+                                |> findEntity model
+                                |> (\entity -> getDictLgNamesAndCoords Narrative.desiredLanguages entity)
+                                |> (\dict -> Dict.get model.settingsModel.displayLanguage dict |> Maybe.map (\( name, lat, lng ) -> { stageName = name, coords = ( lat, lng ), marker_type = "current" }))
+
+                        currentStageNameAndCoordsList =
+                            mbCurrentStageNameAndCoords |> Maybe.map (\x -> [ x ]) |> Maybe.withDefault []
+
+                        lPortCmds : List (Cmd msg)
+                        lPortCmds =
+                            [ Leaflet.Ports.filterMarkersCmdPort { stageMarkerInfo = exitsNamesAndCoords ++ currentStageNameAndCoordsList, playerCoords = model.mbGeoLocation |> Maybe.map (\rec -> ( rec.latitude, rec.longitude )) |> Maybe.withDefault ( 0, 0 ) }
+                            , case mbCurrentStageNameAndCoords of
+                                Just currInfo ->
+                                    Leaflet.Ports.setView ( currInfo.coords, model.mapZoomNumber, model.mapZoomPanOptions )
+
+                                Nothing ->
+                                    Cmd.none
+                            ]
+
+                        getAlertMessages3 =
+                            [ incidentOnHasEndedConversion, incidentOnGetsuggestedInteraction, incidentOnGetAdditionalTextDict, incidentOnGetAlertMessage2 ]
                     in
-                        ( { model
-                            | engineModel = newEngineModel --  |> checkEnd
-                            , alertMessages = (getAlertMessage1 ++ getAlertMessage2)
-                            , answerBoxModel = newAnswerBoxModel
-                            , languageStoryLines = newLanguageStoryLines
-                            , languageNarrativeContents = updatedContent
-                            , settingsModel = newSettingsModel2
-                          }
-                        , Cmd.none
-                        )
+                    ( { model
+                        | engineModel = newEngineModel --  |> checkEnd
+                        , alertMessages = getAlertMessage1 ++ getAlertMessage2 ++ getAlertMessages3 ++ lincidentsOnNarratives
+                        , answerBoxModel = newAnswerBoxModel
+                        , languageStoryLines = newLanguageStoryLines
+                        , languageNarrativeContents = updatedContent
+                        , settingsModel = newSettingsModel2
+                      }
+                    , if not model.bLoadHistoryMode && Engine.getRandomElemsListSize newEngineModel < model.randomElemsListDesiredSize then
+                        Cmd.batch
+                            ([ Random.generate FillRandomElemsList (Random.list (model.randomElemsListDesiredSize - Engine.getRandomElemsListSize newEngineModel) (Random.float 0 1))
+                             ]
+                                ++ lPortCmds
+                            )
+
+                      else
+                        --Cmd.none
+                        Cmd.batch lPortCmds
+                    )
+
+                FillRandomElemsList lfloats ->
+                    let
+                        newEngineModel =
+                            Engine.addToRandomElemsList lfloats model.engineModel
+
+                        newModel =
+                            { model
+                                | engineModel = newEngineModel
+                                , lallgeneretedRandomFloats = model.lallgeneretedRandomFloats ++ lfloats
+                            }
+                    in
+                    ( newModel, Cmd.none )
+
+                NewRandomElemsAtGameStart lfloats ->
+                    let
+                        newModel =
+                            getNewModelAfterGameStartRandomElems lfloats model
+                    in
+                    ( newModel, Cmd.none )
 
                 NewUserSubmitedText theText ->
                     let
                         newAnswerBoxModel =
                             AnswerBox.update theText model.answerBoxModel
                     in
-                        ( { model | answerBoxModel = newAnswerBoxModel }, Cmd.none )
+                    ( { model | answerBoxModel = newAnswerBoxModel }, Cmd.none )
 
                 ChangeOptionDisplayLanguage theLanguage ->
                     let
                         newSettingsModel =
                             Settings.update (ClientTypes.SetDisplayLanguage theLanguage) model.settingsModel
                     in
-                        ( { model | settingsModel = newSettingsModel }, Cmd.none )
+                    ( { model | settingsModel = newSettingsModel }, Cmd.none )
 
                 ChangeOptionDontCheckGps bdontcheck ->
                     let
                         newSettingsModel =
                             Settings.update (ClientTypes.SetDontNeedToBeInZone bdontcheck) model.settingsModel
                     in
-                        ( { model | settingsModel = newSettingsModel }, Cmd.none )
+                    ( { model | settingsModel = newSettingsModel }, Cmd.none )
 
                 CloseAlert ->
                     ( { model | alertMessages = [] }, Cmd.none )
@@ -699,28 +976,28 @@ update msg model =
                         newSettingsModel =
                             Settings.update (ClientTypes.SettingsChangeOptionAutoplay bautoplay) model.settingsModel
                     in
-                        ( { model | settingsModel = newSettingsModel }, Cmd.none )
+                    ( { model | settingsModel = newSettingsModel }, Cmd.none )
 
                 LayoutWithSideBar bWithSidebar ->
                     let
                         newSettingsModel =
                             Settings.update (ClientTypes.SettingsLayoutWithSidebar bWithSidebar) model.settingsModel
                     in
-                        ( { model | settingsModel = newSettingsModel }, Cmd.none )
+                    ( { model | settingsModel = newSettingsModel }, Cmd.none )
 
                 ToggleShowExpandedSettings ->
                     let
                         newSettingsModel =
-                            Settings.update (ClientTypes.SettingsToggleShowExpanded) model.settingsModel
+                            Settings.update ClientTypes.SettingsToggleShowExpanded model.settingsModel
                     in
-                        ( { model | settingsModel = newSettingsModel }, Cmd.none )
+                    ( { model | settingsModel = newSettingsModel }, Cmd.none )
 
                 ToggleShowHideSaveLoadBtns ->
                     let
                         newSettingsModel =
-                            Settings.update (ClientTypes.SettingsToggleShowHideSaveLoadBtns) model.settingsModel
+                            Settings.update ClientTypes.SettingsToggleShowHideSaveLoadBtns model.settingsModel
                     in
-                        ( { model | settingsModel = newSettingsModel }, Cmd.none )
+                    ( { model | settingsModel = newSettingsModel }, Cmd.none )
 
                 SaveHistory ->
                     saveHistoryToStorageHelper model
@@ -736,21 +1013,23 @@ update msg model =
                         newlist =
                             convertToListIdExtraInfo obj.lInteractions
 
+                        lPrandomFloats =
+                            obj.lPrandomFloats
+
                         savedSettings =
-                            model.settingsModel
+                            Settings.update ClientTypes.SettingsHideExitToFinalScreenButton model.settingsModel
 
                         ( newModel, cmds ) =
-                            init (Flags model.baseImgUrl model.baseSoundUrl)
+                            initWithMbPlayerNameAndMbHistoryList (Flags model.baseImgUrl model.baseSoundUrl) False lPrandomFloats (Just playerName) newlist
 
                         newModel_ =
                             if List.length newlist == 0 then
                                 { newModel | alertMessages = "Nothing To Load !" :: newModel.alertMessages }
+
                             else
                                 { newModel | alertMessages = [] }
                     in
-                        ( newModel_, cmds )
-                            |> Update.Extra.andThen update (StartMainGameNewPlayerName playerName)
-                            |> Update.Extra.andThen update (ProcessLoadHistory newlist savedSettings)
+                    ( newModel_, cmds )
 
                 ProcessLoadHistory ltups savedSettings ->
                     let
@@ -760,11 +1039,11 @@ update msg model =
                                     ( model, Cmd.none )
 
                                 head :: rest ->
-                                    ( model, Cmd.none )
-                                        |> Update.Extra.andThen update (InteractStepTwo (Tuple.first head) (Tuple.second head))
-                                        |> Update.Extra.andThen update (ProcessLoadHistory rest savedSettings)
+                                    ( { model | bLoadHistoryMode = True }, Cmd.none )
+                                        |> updateExtraAndThen update (InteractStepTwo (Tuple.first head) (Tuple.second head))
+                                        |> updateExtraAndThen update (ProcessLoadHistory rest savedSettings)
                     in
-                        ( { newModel | settingsModel = savedSettings }, cmds )
+                    ( { newModel | settingsModel = savedSettings, bLoadHistoryMode = False }, cmds )
 
                 ExitToFinalScreen ->
                     ( { model | displayEndScreen = True }, Cmd.none )
@@ -775,18 +1054,53 @@ update msg model =
                     )
 
 
-port saveHistoryToStorage : { playerName : String, lInteractions : List SaveHistoryRecord } -> Cmd msg
+{-| this is taken from ccapndave/elm-update-extra package while not yet upgraded to Elm 0.19 version
+-}
+updateExtraAndThen : (msg -> Model -> ( Model, Cmd a )) -> msg -> ( Model, Cmd a ) -> ( Model, Cmd a )
+updateExtraAndThen updatefunc msg ( model, cmd ) =
+    let
+        ( model_, cmd_ ) =
+            updatefunc msg model
+    in
+    ( model_, Cmd.batch [ cmd, cmd_ ] )
+
+
+regexUserReplace : String -> (Regex.Match -> String) -> String -> String
+regexUserReplace userRegex replacer string =
+    case Regex.fromString userRegex of
+        Nothing ->
+            string
+
+        Just regex ->
+            Regex.replace regex replacer string
+
+
+port saveHistoryToStorage : { playerName : String, lInteractions : List SaveHistoryRecord, lPrandomFloats : List Float } -> Cmd msg
 
 
 port sendRequestForStoredHistory : String -> Cmd msg
 
 
-port getHistoryFromStorage : ({ playerName : String, lInteractions : List SaveHistoryRecord } -> msg) -> Sub msg
+port getHistoryFromStorage : ({ playerName : String, lInteractions : List SaveHistoryRecord, lPrandomFloats : List Float } -> msg) -> Sub msg
+
+
+port sendRequestForGeolocation : String -> Cmd msg
+
+
+port getGeolocationFromBrowser : ({ interactableId : String, latitude : Float, longitude : Float } -> msg) -> Sub msg
+
+
+
+-- This was used with Elm  0.18
+--Task.attempt (NewCoordsForInterId interactableId mbGpsZone bval interactionExtraInfo) Geolocation.now
 
 
 subscriptions : a -> Sub Msg
 subscriptions a =
-    (getHistoryFromStorage LoadHistory)
+    Sub.batch
+        [ getHistoryFromStorage LoadHistory
+        , getGeolocationFromBrowser NewCoordsForInterId
+        ]
 
 
 convertToListIdExtraInfo : List SaveHistoryRecord -> List ( String, InteractionExtraInfo )
@@ -810,8 +1124,9 @@ helperEmptyStringToNothing : String -> Maybe String
 helperEmptyStringToNothing theStr =
     if theStr == "" then
         Nothing
+
     else
-        (Just theStr)
+        Just theStr
 
 
 saveHistoryToStorageHelper : Model -> ( Model, Cmd ClientTypes.Msg )
@@ -834,9 +1149,12 @@ saveHistoryToStorageHelper model =
                 storyHistory
 
         infoToSave =
-            { playerName = getInLanguage model.settingsModel.displayLanguage model.playerName, lInteractions = lToSave }
+            { playerName = getInLanguage model.settingsModel.displayLanguage model.playerName
+            , lInteractions = lToSave
+            , lPrandomFloats = model.lallgeneretedRandomFloats
+            }
     in
-        ( model, saveHistoryToStorage infoToSave )
+    ( model, saveHistoryToStorage infoToSave )
 
 
 getExtraInfoFromModel : Model -> String -> InteractionExtraInfo
@@ -848,13 +1166,13 @@ getExtraInfoFromModel model interactableId =
         currLocNameAndCoords =
             currLocationStrId |> findEntity model |> getDictLgNamesAndCoords Narrative.desiredLanguages
     in
-        InteractionExtraInfo
-            model.mbSentText
-            model.mbSentText
-            (GpsUtils.getCurrentGeoReportAsText currLocNameAndCoords model.geoLocation model.geoDistances 3)
-            currLocationStrId
-            (Dict.get interactableId model.bkendAnswerStatusDict |> Maybe.withDefault EngineTypes.NoInfoYet)
-            Nothing
+    InteractionExtraInfo
+        model.mbSentText
+        model.mbSentText
+        (GpsUtils.getCurrentGeoReportAsText currLocNameAndCoords model.mbGeoLocation model.geoDistances 3)
+        currLocationStrId
+        (Dict.get interactableId model.bkendAnswerStatusDict |> Maybe.withDefault EngineTypes.NoInfoYet)
+        Nothing
 
 
 updateInterExtraInfoWithGeoInfo : EngineTypes.InteractionExtraInfo -> Model -> InteractionExtraInfo
@@ -863,15 +1181,17 @@ updateInterExtraInfoWithGeoInfo extraInforecord model =
         currLocNameAndCoords =
             Engine.getCurrentLocation model.engineModel |> findEntity model |> getDictLgNamesAndCoords Narrative.desiredLanguages
     in
-        { extraInforecord
-            | geolocationInfoText =
-                (GpsUtils.getCurrentGeoReportAsText currLocNameAndCoords model.geoLocation model.geoDistances 3)
-        }
+    { extraInforecord
+        | geolocationInfoText =
+            GpsUtils.getCurrentGeoReportAsText currLocNameAndCoords model.mbGeoLocation model.geoDistances 3
+    }
 
 
-getNewCoords : String -> Maybe GpsZone -> Bool -> EngineTypes.InteractionExtraInfo -> Cmd ClientTypes.Msg
-getNewCoords interactableId mbGpsZone bval interactionExtraInfo =
-    Task.attempt (NewCoordsForInterId interactableId mbGpsZone bval interactionExtraInfo) Geolocation.now
+
+-- Elm 0.18 old code ( using module elm-lang/geolocation )
+--getNewCoords : String -> Maybe GpsZone -> Bool -> EngineTypes.InteractionExtraInfo -> Cmd ClientTypes.Msg
+--getNewCoords interactableId mbGpsZone bval interactionExtraInfo =
+--    Task.attempt (NewCoordsForInterId interactableId mbGpsZone bval interactionExtraInfo) Geolocation.now
 
 
 type alias LgTxt =
@@ -883,23 +1203,34 @@ type alias LgTxt =
 textInLanguagesDecoder : Json.Decode.Decoder LgTxt
 textInLanguagesDecoder =
     Json.Decode.map2 LgTxt
-        (Json.Decode.field "lgId" (Json.Decode.string))
-        (Json.Decode.field "text" (Json.Decode.string))
+        (Json.Decode.field "lgId" Json.Decode.string)
+        (Json.Decode.field "text" Json.Decode.string)
 
 
 backendAnswerDecoder : String -> String -> Json.Decode.Decoder EngineTypes.AnswerInfo
 backendAnswerDecoder interactableId playerAnswer =
-    Json.Decode.Pipeline.decode AnswerInfo
-        |> Json.Decode.Pipeline.required "maxTriesReached" (Json.Decode.bool)
+    Json.Decode.succeed AnswerInfo
+        |> Json.Decode.Pipeline.required "maxTriesReached" Json.Decode.bool
         |> Json.Decode.Pipeline.hardcoded interactableId
-        |> Json.Decode.Pipeline.required "questionBody" (Json.Decode.string)
+        |> Json.Decode.Pipeline.required "questionBody" Json.Decode.string
         |> Json.Decode.Pipeline.hardcoded playerAnswer
-        |> Json.Decode.Pipeline.required "answered" (Json.Decode.bool)
-        |> Json.Decode.Pipeline.required "correctAnswer" (Json.Decode.bool)
-        |> Json.Decode.Pipeline.required "incorrectAnswer" (Json.Decode.bool)
+        |> Json.Decode.Pipeline.required "answered" Json.Decode.bool
+        |> Json.Decode.Pipeline.required "correctAnswer" Json.Decode.bool
+        |> Json.Decode.Pipeline.required "incorrectAnswer" Json.Decode.bool
         |> Json.Decode.Pipeline.required "lSecretTextDicts" (Json.Decode.list textInLanguagesDecoder)
         |> Json.Decode.Pipeline.required "lSuccessTextDicts" (Json.Decode.list textInLanguagesDecoder)
         |> Json.Decode.Pipeline.required "lInsuccessTextDicts" (Json.Decode.list textInLanguagesDecoder)
+
+
+playerAnswerEncoder : String -> String -> Json.Encode.Value
+playerAnswerEncoder interactableId playerAnswer =
+    let
+        attributes =
+            [ ( "interactableId", Json.Encode.string interactableId )
+            , ( "playerAnswer", Json.Encode.string playerAnswer )
+            ]
+    in
+    Json.Encode.object attributes
 
 
 getBackendAnswerInfo : String -> EngineTypes.ExtraInfoWithPendingChanges -> String -> Cmd ClientTypes.Msg
@@ -910,12 +1241,18 @@ getBackendAnswerInfo interactableId extraInfoWithPendingChanges strUrl =
 
         request =
             Http.request
-                { method = "GET"
+                { method = "POST"
                 , headers =
                     [ Http.header "x-api-key" apiKey
                     ]
                 , url = strUrl
-                , body = Http.emptyBody
+                , body =
+                    extraInfoWithPendingChanges.interactionExtraInfo.mbInputTextForBackend
+                        |> Maybe.withDefault ""
+                        |> playerAnswerEncoder interactableId
+                        |> Http.jsonBody
+
+                --Http.emptyBody
                 , expect = Http.expectJson (backendAnswerDecoder interactableId (Maybe.withDefault "" extraInfoWithPendingChanges.interactionExtraInfo.mbInputTextForBackend))
                 , timeout = Nothing
                 , withCredentials = False
@@ -924,15 +1261,16 @@ getBackendAnswerInfo interactableId extraInfoWithPendingChanges strUrl =
         newExtraInfoWithPendingChanges =
             updateNestedMbInputTextBk extraInfoWithPendingChanges Nothing
     in
-        Http.send (AnswerChecked interactableId newExtraInfoWithPendingChanges) request
+    Http.send (AnswerChecked interactableId newExtraInfoWithPendingChanges) request
 
 
 getNewModelAndInteractionExtraInfoByEngineUpdate : String -> EngineTypes.ExtraInfoWithPendingChanges -> Model -> ( EngineTypes.InteractionExtraInfo, Model )
 getNewModelAndInteractionExtraInfoByEngineUpdate interactableId extraInfoWithPendingChanges model =
     -- only allow interaction if this interactable isnt waiting for some backend answer confirmation
-    if (Dict.get interactableId model.bkendAnswerStatusDict == Just EngineTypes.WaitingForInfoRequested) then
+    if Dict.get interactableId model.bkendAnswerStatusDict == Just EngineTypes.WaitingForInfoRequested then
         -- Interactable is awaiting for some backend confirmation. No interaction possible at this time
         ( extraInfoWithPendingChanges.interactionExtraInfo, { model | alertMessages = "Please Wait ... \n" :: model.alertMessages } )
+
     else
         let
             ( newEngineModel, lInteractionIncidents ) =
@@ -950,6 +1288,7 @@ getNewModelAndInteractionExtraInfoByEngineUpdate interactableId extraInfoWithPen
             interactionIncidents =
                 if model.debugMode then
                     lInteractionIncidents
+
                 else
                     []
 
@@ -960,7 +1299,7 @@ getNewModelAndInteractionExtraInfoByEngineUpdate interactableId extraInfoWithPen
                     , alertMessages = interactionIncidents
                 }
         in
-            ( newInteractionExtraInfo, newModel )
+        ( newInteractionExtraInfo, newModel )
 
 
 
@@ -971,9 +1310,10 @@ view : Model -> Html ClientTypes.Msg
 view model =
     if model.displayStartScreen then
         viewStartScreen model.baseImgUrl model
+
     else if model.displayEndScreen then
-        --h1 [] [ text "Congratulations ! You reached the End . You are a master of your neighbourhood :) " ]
         Theme.EndScreen.view model.baseImgUrl model.endScreenInfo
+
     else
         viewMainGame model
 
@@ -984,7 +1324,8 @@ viewMainGame :
 viewMainGame model =
     let
         currentLocation =
-            Engine.getCurrentLocation model.engineModel |> findEntity model
+            Engine.getCurrentLocation model.engineModel
+                |> findEntity model
 
         theStoryLine =
             Dict.get model.settingsModel.displayLanguage model.languageStoryLines
@@ -992,6 +1333,20 @@ viewMainGame model =
 
         mbInteactableIdAtTop =
             List.head theStoryLine |> Maybe.map .interactableId
+
+        ( mbTextBoxPlaceholderText_, incidentOnPlaceholderTextConversion ) =
+            case mbInteactableIdAtTop of
+                Nothing ->
+                    ( Nothing, "" )
+
+                Just interactableId ->
+                    Engine.getInteractableAttribute "placeholderText" interactableId model.engineModel
+                        |> Tconverter.mbAttributeToMbString model.debugMode
+
+        ( answerOptionsDict_, incidentOnGetAnswerOptionsDict ) =
+            Maybe.map (\x -> Engine.getInteractableAttribute "answerOptionsList" x model.engineModel) mbInteactableIdAtTop
+                |> Maybe.map (Tconverter.mbAttributeToDictStringListStringString model.debugMode)
+                |> Maybe.withDefault ( Dict.empty, "" )
 
         displayState =
             { currentLocation = currentLocation
@@ -1017,9 +1372,7 @@ viewMainGame model =
                     |> Maybe.withDefault Nothing
             , audioAutoplay = model.settingsModel.audioAutoplay
             , answerOptionsDict =
-                Maybe.map (\x -> Engine.getInteractableAttribute "answerOptionsList" x model.engineModel) mbInteactableIdAtTop
-                    |> Maybe.map (Tconverter.mbAttributeToDictStringListStringString model.debugMode)
-                    |> Maybe.withDefault Dict.empty
+                answerOptionsDict_
             , layoutWithSidebar = model.settingsModel.layoutWithSidebar
             , boolTextBoxInStoryline =
                 case mbInteactableIdAtTop of
@@ -1030,26 +1383,23 @@ viewMainGame model =
                         Engine.isWritable interactableId model.engineModel
                             && Dict.get interactableId model.bkendAnswerStatusDict
                             /= Just EngineTypes.WaitingForInfoRequested
-            , mbTextBoxPlaceholderText =
-                case mbInteactableIdAtTop of
-                    Nothing ->
-                        Nothing
-
-                    Just interactableId ->
-                        Engine.getInteractableAttribute "placeholderText" interactableId model.engineModel
-                            |> Tconverter.mbAttributeToMbString model.debugMode
+            , mbTextBoxPlaceholderText = mbTextBoxPlaceholderText_
             , settingsModel = model.settingsModel
-            , alertMessages = model.alertMessages
+            , alertMessages =
+                model.alertMessages
+                    ++ [ incidentOnPlaceholderTextConversion, incidentOnGetAnswerOptionsDict ]
+                    |> List.filter (\x -> x /= "")
             , ending =
                 Engine.getEndingText model.engineModel
             , storyLine =
                 theStoryLine
             }
     in
-        if not model.loaded then
-            div [ class "Loading" ] [ text "Loading..." ]
-        else
-            Theme.Layout.view displayState
+    if not model.loaded then
+        div [ class "Loading" ] [ text "Loading..." ]
+
+    else
+        Theme.Layout.view displayState
 
 
 viewStartScreen : String -> Model -> Html ClientTypes.Msg
@@ -1068,7 +1418,7 @@ type alias Flags =
 
 main : Program Flags Model ClientTypes.Msg
 main =
-    Html.programWithFlags
+    Browser.element
         { init = init
         , view = view
         , update = update
