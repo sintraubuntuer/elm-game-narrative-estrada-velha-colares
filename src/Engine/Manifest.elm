@@ -1079,23 +1079,27 @@ checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractab
                 ansRight =
                     playerAns ++ answerFeedback
 
-                maxNrTries =
-                    Maybe.withDefault -999 checkAnsData.mbMaxNrTries
+                mbMaxNrTries =
+                    checkAnsData.mbMaxNrTries
 
-                getAnsWrong nrTriesArg theMax =
+                getAnsWrong nrTriesArg mbTheMax =
                     let
                         ansFeedback =
-                            if theMax > 0 && nrTriesArg >= (theMax - 1) then
-                                "  \n" ++ " " ++ reach_max_nr_tries
+                            case mbTheMax of
+                                Just theMax ->
+                                    if nrTriesArg >= theMax then
+                                        "  \n" ++ " " ++ reach_max_nr_tries
 
-                            else
-                                incorrect
-                                    ++ (if theMax > 0 then
-                                            "  \n" ++ " " ++ "___NR_TRIES_LEFT___" ++ " " ++ String.fromInt (theMax - 1 - nrTriesArg)
+                                    else
+                                        incorrect
+                                            ++ "  \n"
+                                            ++ " "
+                                            ++ "___NR_TRIES_LEFT___"
+                                            ++ " "
+                                            ++ String.fromInt (theMax - nrTriesArg)
 
-                                        else
-                                            ""
-                                       )
+                                Nothing ->
+                                    incorrect
                     in
                     playerAns
                         ++ (if checkAnsData.answerFeedback == HeaderAnswerAndCorrectIncorrect then
@@ -1106,21 +1110,30 @@ checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractab
                            )
 
                 nrTries =
-                    getICounterValue "nrIncorrectAnswers" mbinteractable
-                        |> Maybe.withDefault 0
-
-                makeItUnanswarableIfReachedMaxTries : Int -> Maybe Interactable -> Maybe Interactable
-                makeItUnanswarableIfReachedMaxTries maxnr mbinter =
                     let
-                        nrtries =
-                            Maybe.withDefault 0 (getICounterValue "nrIncorrectAnswers" mbinteractable)
+                        previousNrTries =
+                            getICounterValue "nrIncorrectAnswers" mbinteractable
+                                |> Maybe.withDefault 0
                     in
-                    if maxnr > 0 && nrtries >= maxnr then
-                        --makeItemUnwritable mbinter
-                        makeItUnanswerable mbinter
+                    if playerAnswer /= "" then
+                        previousNrTries + 1
 
                     else
-                        mbinter
+                        previousNrTries
+
+                makeItUnanswarableIfReachedMaxTries : Maybe Int -> Int -> Maybe Interactable -> Maybe Interactable
+                makeItUnanswarableIfReachedMaxTries mbMaxnr nrtries mbinter =
+                    case mbMaxnr of
+                        Just maxnr ->
+                            if nrtries >= maxnr then
+                                --makeItemUnwritable mbinter
+                                makeItUnanswerable mbinter
+
+                            else
+                                mbinter
+
+                        Nothing ->
+                            mbinter
 
                 ( theCorrectAnswers, bEval ) =
                     case questionAns of
@@ -1139,7 +1152,7 @@ checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractab
                 --otherInterAttribsRelatedCWcmds =
                 --    List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId otherInterId :: y) [] checkAnsData.lotherInterAttrs
                 theMbInteractable =
-                    if maxNrTries > 0 && nrTries >= maxNrTries then
+                    if nrTries > Maybe.withDefault 1000000 mbMaxNrTries then
                         mbinteractable
                             |> makeItUnanswerable
 
@@ -1163,13 +1176,13 @@ checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractab
                             |> createAttributesIfNotExistsAndOrSetValue checkAnsData.lnewAttrs
 
                     else
-                        Just (Item { idata | writtenContent = Just (getAnsWrong nrTries maxNrTries) })
+                        Just (Item { idata | writtenContent = Just (getAnsWrong nrTries mbMaxNrTries) })
                             |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer" (Just "internal")
                             |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isIncorrectlyAnswered" (Just "internal")
                             |> removeAttributeIfExists "isCorrectlyAnswered"
                             |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theInsuccessTextDict) "additionalTextDict" (Just "internal")
                             |> createCounterIfNotExists "nrIncorrectAnswers"
-                            |> makeItUnanswarableIfReachedMaxTries (maxNrTries - 1)
+                            |> makeItUnanswarableIfReachedMaxTries mbMaxNrTries nrTries
                             |> increaseCounter "nrIncorrectAnswers"
             in
             theMbInteractable
