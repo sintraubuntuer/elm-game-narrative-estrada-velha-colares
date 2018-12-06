@@ -16,7 +16,6 @@ module Engine.Manifest exposing
     , getItemsInLocation
     , getItemsInLocationIncludeWrittenContent
     , getLocations
-    , getReservedAttrIds
     , init
     , isCharacter
     , isItem
@@ -403,133 +402,239 @@ manifestUpdateWithLocCheck interactbaleId locationId updateFuncMbToMb ( manifest
     ( newManifestUpdated, incidentswithInterErrorsAndWarnings )
 
 
-update : ChangeWorldCommand -> ( Manifest, List String ) -> ( Manifest, List String )
-update change ( manifest, linteractionincidents ) =
+update : ChangeWorldCommand -> ( Types.Story, List String ) -> ( Types.Story, List String )
+update change ( storyRecord, linteractionincidents ) =
     case change of
         NoChange ->
-            ( manifest, linteractionincidents )
+            ( storyRecord, linteractionincidents )
 
-        MoveTo id ->
-            manifestUpdate id addLocation ( manifest, linteractionincidents )
+        MoveTo locationId ->
+            ( { storyRecord | currentLocation = locationId }, linteractionincidents )
 
         AddLocation id ->
-            manifestUpdate id addLocation ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id addLocation ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         RemoveLocation id ->
-            manifestUpdate id removeLocation ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id removeLocation ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MoveItemToCharacterInventory charId id ->
-            manifestUpdate id (moveItemToCharacterInventory charId manifest) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id (moveItemToCharacterInventory charId storyRecord.manifest) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MoveItemToLocation itemId locationId ->
-            manifestUpdate itemId (moveItemToLocation locationId) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate itemId (moveItemToLocation locationId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MoveItemToLocationFixed itemId locationId ->
-            manifestUpdateWithLocCheck itemId locationId (moveItemToLocationFixed locationId) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdateWithLocCheck itemId locationId (moveItemToLocationFixed locationId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MoveItemOffScreen id ->
-            manifestUpdate id moveItemOffScreen ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id moveItemOffScreen ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MoveCharacterToLocation characterId locationId ->
-            manifestUpdateWithLocCheck characterId locationId (moveCharacterToLocation locationId) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdateWithLocCheck characterId locationId (moveCharacterToLocation locationId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MoveCharacterOffScreen id ->
-            manifestUpdate id moveCharacterOffScreen ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id moveCharacterOffScreen ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
-        WriteTextToItem theText id ->
-            manifestUpdate id (writeTextToItem theText) ( manifest, linteractionincidents )
+        WriteTextToItem theLgTextDict id ->
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id (writeTextToItem theLgTextDict) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         WriteForceTextToItemFromGivenItemAttr attrid intcId id ->
-            manifestUpdate id (writeForceTextToItemFromOtherInteractableAttrib attrid intcId manifest) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id (writeForceTextToItemFromOtherInteractableAttrib attrid intcId storyRecord.manifest) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         WriteGpsLocInfoToItem theInfoStr id ->
-            manifestUpdate id (writeGpsLocInfoToItem theInfoStr) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id (writeGpsLocInfoToItem theInfoStr) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         ClearWrittenText id ->
-            manifestUpdate id clearWrittenText ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id clearWrittenText ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         CheckIfAnswerCorrect theText playerAnswer cAnswerData interactableId ->
-            manifestUpdate interactableId (checkIfAnswerCorrect theText playerAnswer cAnswerData manifest) ( manifest, linteractionincidents )
-                |> processCreateOrSetOtherInteractableAttributesIfAnswerCorrect cAnswerData.lotherInterAttrs interactableId
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (checkIfAnswerCorrect theText playerAnswer cAnswerData storyRecord.manifest) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
+                |> processNewChangeWorldCommands interactableId
 
         CheckAndActIfChosenOptionIs playerChoice lcOptionData interactableId ->
-            manifestUpdate interactableId (checkAndActIfChosenOptionIs playerChoice lcOptionData interactableId manifest) ( manifest, linteractionincidents )
-                --|> processCreateOrSetOtherInteractableAttributesIfChosenOptionIs playerChoice cOptionData.valueToMatch cOptionData.lotherInterAttrs interactableId
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (checkAndActIfChosenOptionIs playerChoice lcOptionData interactableId storyRecord.manifest) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
                 |> processNewChangeWorldCommands interactableId
 
         --ProcessChosenOptionEqualTo cOptionData id ->
         --    manifestUpdate id (processChosenOptionEqualTo cOptionData manifest) ( manifest, linteractionincidents )
         ResetOption interactableId ->
-            manifestUpdate interactableId resetOption ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId resetOption ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         CreateAMultiChoice dslss id ->
-            manifestUpdate id (createAmultiChoice dslss) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id (createAmultiChoice dslss) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         RemoveMultiChoiceOptions id ->
-            manifestUpdate id removeMultiChoiceOptions ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id removeMultiChoiceOptions ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         CreateCounterIfNotExists counterId interactableId ->
-            manifestUpdate interactableId (createCounterIfNotExists counterId) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (createCounterIfNotExists counterId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         IncreaseCounter counterId interactableId ->
-            manifestUpdate interactableId (increaseCounter counterId) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (increaseCounter counterId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
-        CreateAttributeIfNotExists attrValue attrId mbInternal interactableId ->
-            manifestUpdate interactableId (createAttributeIfNotExists attrValue attrId mbInternal) ( manifest, linteractionincidents )
+        CreateAttributeIfNotExists attrValue attrId interactableId ->
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (createAttributeIfNotExists attrValue attrId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
-        SetAttributeValue attrValue attrId mbInternal interactableId ->
-            manifestUpdate interactableId (setAttributeValue attrValue attrId mbInternal) ( manifest, linteractionincidents )
+        SetAttributeValue attrValue attrId interactableId ->
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (setAttributeValue attrValue attrId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
-        CreateAttributeIfNotExistsAndOrSetValue attrValue attrId mbInternal interactableId ->
-            manifestUpdate interactableId (createAttributeIfNotExistsAndOrSetValue attrValue attrId mbInternal) ( manifest, linteractionincidents )
+        CreateAttributeIfNotExistsAndOrSetValue attrValue attrId interactableId ->
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (createAttributeIfNotExistsAndOrSetValue attrValue attrId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         CreateOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId interactableId ->
-            manifestUpdate interactableId (createOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId manifest) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (createOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId storyRecord.manifest) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         RemoveAttributeIfExists attrId interactableId ->
-            manifestUpdate interactableId (removeAttributeIfExists attrId) ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate interactableId (removeAttributeIfExists attrId) ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MakeItemWritable id ->
-            manifestUpdate id makeItemWritable ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id makeItemWritable ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MakeItemUnwritable id ->
-            manifestUpdate id makeItemUnwritable ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id makeItemUnwritable ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         RemoveChooseOptions id ->
-            manifestUpdate id removeChooseOptions ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id removeChooseOptions ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         MakeItUnanswerable id ->
-            manifestUpdate id makeItUnanswerable ( manifest, linteractionincidents )
+            let
+                ( newManifest, newIncidents ) =
+                    manifestUpdate id makeItUnanswerable ( storyRecord.manifest, linteractionincidents )
+            in
+            ( { storyRecord | manifest = newManifest }, newIncidents )
 
         ExecuteCustomFunc func extraInfo interactableId ->
-            func extraInfo manifest
-                |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
+            let
+                lChangeWorldCommands =
+                    func extraInfo storyRecord.manifest
+            in
+            List.foldl (\chg tup -> update chg tup) ( storyRecord, linteractionincidents ) lChangeWorldCommands
 
-        ExecuteCustomFuncUsingRandomElems func extraInfo lfloats interactableId ->
-            func extraInfo lfloats manifest
-                |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
+        LoadScene sceneName ->
+            ( { storyRecord | currentScene = sceneName }, linteractionincidents )
 
-        LoadScene str ->
-            -- doesnt imply a change in the manifest. It is handled in Engine.changeWorld only
-            ( manifest, linteractionincidents )
+        SetChoiceLanguages dictLgs ->
+            ( { storyRecord | choiceLanguages = dictLgs }, linteractionincidents )
 
-        SetChoiceLanguages d ->
-            -- doesnt imply a change in the manifest. It is handled in Engine.changeWorld only
-            ( manifest, linteractionincidents )
+        AddChoiceLanguage lgId lgName ->
+            ( { storyRecord | choiceLanguages = Dict.insert lgId lgName storyRecord.choiceLanguages }, linteractionincidents )
 
-        AddChoiceLanguage s1 s2 ->
-            -- doesnt imply a change in the manifest. It is handled in Engine.changeWorld only
-            ( manifest, linteractionincidents )
-
-        EndStory t s ->
-            -- doesnt imply a change in the manifest. It is handled in Engine.changeWorld only
-            ( manifest, linteractionincidents )
+        EndStory endingtype ending ->
+            ( { storyRecord | theEnd = Just (TheEnd endingtype ending) }, linteractionincidents )
 
 
 createAmultiChoice : Dict String (List ( String, String )) -> Maybe Interactable -> Maybe Interactable
 createAmultiChoice dslss mbInteractable =
-    createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsList" (Just "internal") mbInteractable
-        |> createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsListBackup" (Just "internal")
+    createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsList" mbInteractable
+        |> createAttributeIfNotExistsAndOrSetValue (ADictStringLSS dslss) "answerOptionsListBackup"
         |> removeAttributeIfExists "chosenOption"
 
 
@@ -541,7 +646,7 @@ reactivateMultiChoiceFromBackup mbInteractable =
     in
     case mbAnsOptList of
         Just ansOptList ->
-            createAttributeIfNotExistsAndOrSetValue ansOptList "answerOptionsList" (Just "internal") mbInteractable
+            createAttributeIfNotExistsAndOrSetValue ansOptList "answerOptionsList" mbInteractable
                 |> removeAttributeIfExists "chosenOption"
 
         Nothing ->
@@ -553,43 +658,41 @@ removeMultiChoiceOptions mbInteractable =
     removeAttributeIfExists "answerOptionsList" mbInteractable
 
 
-processCreateOrSetOtherInteractableAttributesIfAnswerCorrect : List ( String, String, AttrTypes ) -> String -> ( Manifest, List String ) -> ( Manifest, List String )
-processCreateOrSetOtherInteractableAttributesIfAnswerCorrect lotherInterAttrs interactableId ( manifest, linteractionincidents ) =
-    if attrValueIsEqualTo (Abool True) "isCorrectlyAnswered" interactableId manifest then
-        List.map (\( interId, attrId, attrValue ) -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId Nothing interId) lotherInterAttrs
-            |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
-
-    else
-        ( manifest, linteractionincidents )
-
-
-processCreateOrSetOtherInteractableAttributesIfChosenOptionIs : String -> String -> List ( String, String, AttrTypes ) -> String -> ( Manifest, List String ) -> ( Manifest, List String )
-processCreateOrSetOtherInteractableAttributesIfChosenOptionIs playerChoice valToMatch lotherInterAttrs interactableId ( manifest, linteractionincidents ) =
-    if playerChoice == valToMatch then
-        List.map (\( interId, attrId, attrValue ) -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId Nothing interId) lotherInterAttrs
-            |> List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents )
-
-    else
-        ( manifest, linteractionincidents )
-
-
-processNewChangeWorldCommands : String -> ( Manifest, List String ) -> ( Manifest, List String )
-processNewChangeWorldCommands interactableId ( manifest, linteractionincidents ) =
-    case Dict.get interactableId manifest of
+processNewChangeWorldCommands : String -> ( Types.Story, List String ) -> ( Types.Story, List String )
+processNewChangeWorldCommands interactableId ( storyRecord, linteractionincidents ) =
+    case Dict.get interactableId storyRecord.manifest of
         Just (Item idata) ->
-            List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents ) idata.newCWCmds
-                |> manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted
+            let
+                ( newStory, nInteractionIncidents ) =
+                    List.foldl (\chg tup -> update chg tup) ( storyRecord, linteractionincidents ) idata.newCWCmds
+
+                ( updatedManifest, newInteractionIncidents ) =
+                    manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted ( newStory.manifest, nInteractionIncidents )
+            in
+            ( { newStory | manifest = updatedManifest }, newInteractionIncidents )
 
         Just (Character cdata) ->
-            List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents ) cdata.newCWCmds
-                |> manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted
+            let
+                ( newStory, nInteractionIncidents ) =
+                    List.foldl (\chg tup -> update chg tup) ( storyRecord, linteractionincidents ) cdata.newCWCmds
+
+                ( updatedManifest, newInteractionIncidents ) =
+                    manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted ( newStory.manifest, nInteractionIncidents )
+            in
+            ( { newStory | manifest = updatedManifest }, newInteractionIncidents )
 
         Just (Location ldata) ->
-            List.foldl (\chg tup -> update chg tup) ( manifest, linteractionincidents ) ldata.newCWCmds
-                |> manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted
+            let
+                ( newStory, nInteractionIncidents ) =
+                    List.foldl (\chg tup -> update chg tup) ( storyRecord, linteractionincidents ) ldata.newCWCmds
+
+                ( updatedManifest, newInteractionIncidents ) =
+                    manifestUpdate interactableId clearNextChangeWorldCommandsToBeExecuted ( newStory.manifest, nInteractionIncidents )
+            in
+            ( { newStory | manifest = updatedManifest }, newInteractionIncidents )
 
         Nothing ->
-            ( manifest, linteractionincidents )
+            ( storyRecord, linteractionincidents )
 
 
 getInteractionErrors : String -> Manifest -> List String
@@ -701,42 +804,37 @@ increaseCounter counterId mbinteractable =
             Nothing
 
 
-createAttributeIfNotExists : AttrTypes -> String -> Maybe String -> Maybe Interactable -> Maybe Interactable
-createAttributeIfNotExists initialVal attrId mbInternal mbinteractable =
-    if mbInternal == Nothing && List.member attrId getReservedAttrIds then
-        mbinteractable
-            |> writeInteractionIncident "warning" ("Sorry ! It was not possible to create  attribute. That's a 'reserved' attributeId : " ++ attrId)
+createAttributeIfNotExists : AttrTypes -> String -> Maybe Interactable -> Maybe Interactable
+createAttributeIfNotExists initialVal attrId mbinteractable =
+    let
+        getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
+        getNewDataRecord theInitialVal theAttrId dataRecord =
+            let
+                newAttributes =
+                    case Dict.get theAttrId dataRecord.attributes of
+                        Nothing ->
+                            Dict.insert theAttrId theInitialVal dataRecord.attributes
 
-    else
-        let
-            getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
-            getNewDataRecord theInitialVal theAttrId dataRecord =
-                let
-                    newAttributes =
-                        case Dict.get theAttrId dataRecord.attributes of
-                            Nothing ->
-                                Dict.insert theAttrId theInitialVal dataRecord.attributes
+                        Just c ->
+                            dataRecord.attributes
 
-                            Just c ->
-                                dataRecord.attributes
+                newDataRecord =
+                    { dataRecord | attributes = newAttributes }
+            in
+            newDataRecord
+    in
+    case mbinteractable of
+        Just (Item idata) ->
+            Just (Item <| getNewDataRecord initialVal attrId idata)
 
-                    newDataRecord =
-                        { dataRecord | attributes = newAttributes }
-                in
-                newDataRecord
-        in
-        case mbinteractable of
-            Just (Item idata) ->
-                Just (Item <| getNewDataRecord initialVal attrId idata)
+        Just (Character cdata) ->
+            Just (Character <| getNewDataRecord initialVal attrId cdata)
 
-            Just (Character cdata) ->
-                Just (Character <| getNewDataRecord initialVal attrId cdata)
+        Just (Location ldata) ->
+            Just (Location <| getNewDataRecord initialVal attrId ldata)
 
-            Just (Location ldata) ->
-                Just (Location <| getNewDataRecord initialVal attrId ldata)
-
-            Nothing ->
-                Nothing
+        Nothing ->
+            Nothing
 
 
 writeInteractionIncident : String -> String -> Maybe Interactable -> Maybe Interactable
@@ -1149,8 +1247,10 @@ checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractab
                 theInsuccessTextDict =
                     generateFeedbackTextDict checkAnsData.incorrectAnsTextDict playerAnswer manifest
 
-                --otherInterAttribsRelatedCWcmds =
-                --    List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId otherInterId :: y) [] checkAnsData.lotherInterAttrs
+                otherInterAttribsRelatedCWcmds : List ChangeWorldCommand
+                otherInterAttribsRelatedCWcmds =
+                    List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId otherInterId :: y) [] checkAnsData.lotherInterAttrs
+
                 theMbInteractable =
                     if nrTries > Maybe.withDefault 1000000 mbMaxNrTries then
                         mbinteractable
@@ -1168,19 +1268,20 @@ checkIfAnswerCorrect questionAns playerAnswer checkAnsData manifest mbinteractab
                     else if (List.length theCorrectAnswers > 0 && comparesEqualToAtLeastOne playerAnswer theCorrectAnswers checkAnsData.answerCase checkAnsData.answerSpaces) || bEval then
                         Just (Item { idata | writtenContent = Just ansRight })
                             |> makeItUnanswerable
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer" (Just "internal")
-                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isCorrectlyAnswered" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer"
+                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isCorrectlyAnswered"
                             |> removeAttributeIfExists "isIncorrectlyAnswered"
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring "___QUESTION_ANSWERED___") "narrativeHeader" (Just "internal")
-                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString thesuccessTextDict) "additionalTextDict" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (Astring "___QUESTION_ANSWERED___") "narrativeHeader"
+                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString thesuccessTextDict) "additionalTextDict"
                             |> createAttributesIfNotExistsAndOrSetValue checkAnsData.lnewAttrs
+                            |> setNextChangeWorldCommandsToBeExecuted otherInterAttribsRelatedCWcmds
 
                     else
                         Just (Item { idata | writtenContent = Just (getAnsWrong nrTries mbMaxNrTries) })
-                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer" (Just "internal")
-                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isIncorrectlyAnswered" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (Astring playerAnswer) "playerAnswer"
+                            |> createAttributeIfNotExistsAndOrSetValue (Abool True) "isIncorrectlyAnswered"
                             |> removeAttributeIfExists "isCorrectlyAnswered"
-                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theInsuccessTextDict) "additionalTextDict" (Just "internal")
+                            |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theInsuccessTextDict) "additionalTextDict"
                             |> createCounterIfNotExists "nrIncorrectAnswers"
                             |> makeItUnanswarableIfReachedMaxTries mbMaxNrTries nrTries
                             |> increaseCounter "nrIncorrectAnswers"
@@ -1278,24 +1379,23 @@ checkAndActIfChosenOptionIs playerChoice lcOptionData optionId manifest mbintera
                                         generateFeedbackTextDict cOptionData.choiceFeedbackText playerChoice manifest
 
                                     otherInterAttribsRelatedCWcmds =
-                                        List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId (Just "internal") otherInterId :: y) [] cOptionData.lotherInterAttrs
+                                        List.foldl (\( otherInterId, attrId, attrValue ) y -> CreateAttributeIfNotExistsAndOrSetValue attrValue attrId otherInterId :: y) [] cOptionData.lotherInterAttrs
                                 in
                                 Just (Item { idata | writtenContent = Just choiceStr })
-                                    |> createAttributeIfNotExistsAndOrSetValue (Astring playerChoice) "chosenOption" (Just "internal")
-                                    |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theTextDict) "additionalTextDict" (Just "internal")
+                                    |> createAttributeIfNotExistsAndOrSetValue (Astring playerChoice) "chosenOption"
+                                    |> createAttributeIfNotExistsAndOrSetValue (ADictStringListString theTextDict) "additionalTextDict"
                                     |> createAttributesIfNotExistsAndOrSetValue cOptionData.lnewAttrs
                                     |> setNextChangeWorldCommandsToBeExecuted (List.append cOptionData.lnewCWcmds otherInterAttribsRelatedCWcmds)
                                     |> removeAttributeIfExists "answerOptionsList"
                                     |> makeItemUnwritable
                                     |> (\mbinter ->
                                             if isResetPossible == Abool True then
-                                                createAttributeIfNotExistsAndOrSetValue (Astring resetOptionId) "suggestedInteraction" (Just "internal") mbinter
+                                                createAttributeIfNotExistsAndOrSetValue (Astring resetOptionId) "suggestedInteraction" mbinter
 
                                             else
                                                 mbinter
                                        )
 
-                            --|> setAttributeValue (aDictStringString Narrative.suggestedDeletedChoiceCaptionDict) "suggestedInteractionCaption" (Just "internal")
                             Nothing ->
                                 mbinteractable
 
@@ -1631,48 +1731,43 @@ attrValueIsEqualTo attrValue attrId interactableId manifest =
 
 {-| sets attribute value only if attribute was previously created
 -}
-setAttributeValue : AttrTypes -> String -> Maybe String -> Maybe Interactable -> Maybe Interactable
-setAttributeValue attrValue attrId mbInternal mbinteractable =
-    if mbInternal == Nothing && List.member attrId getReservedAttrIds then
-        mbinteractable
-            |> writeInteractionIncident "warning" ("Sorry ! It was not possible to  set attribute value . That's a 'reserved' attributeId : " ++ attrId)
+setAttributeValue : AttrTypes -> String -> Maybe Interactable -> Maybe Interactable
+setAttributeValue attrValue attrId mbinteractable =
+    let
+        getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
+        getNewDataRecord theattrValue theattrId dataRecord =
+            let
+                newAttributes =
+                    case Dict.get theattrId dataRecord.attributes of
+                        Nothing ->
+                            dataRecord.attributes
 
-    else
-        let
-            getNewDataRecord : AttrTypes -> String -> { a | attributes : Dict String AttrTypes } -> { a | attributes : Dict String AttrTypes }
-            getNewDataRecord theattrValue theattrId dataRecord =
-                let
-                    newAttributes =
-                        case Dict.get theattrId dataRecord.attributes of
-                            Nothing ->
-                                dataRecord.attributes
+                        Just val ->
+                            Dict.update theattrId (\_ -> Just theattrValue) dataRecord.attributes
 
-                            Just val ->
-                                Dict.update theattrId (\_ -> Just theattrValue) dataRecord.attributes
+                newDataRecord =
+                    { dataRecord | attributes = newAttributes }
+            in
+            newDataRecord
+    in
+    case mbinteractable of
+        Just (Item idata) ->
+            Just (Item <| getNewDataRecord attrValue attrId idata)
 
-                    newDataRecord =
-                        { dataRecord | attributes = newAttributes }
-                in
-                newDataRecord
-        in
-        case mbinteractable of
-            Just (Item idata) ->
-                Just (Item <| getNewDataRecord attrValue attrId idata)
+        Just (Character cdata) ->
+            Just (Character <| getNewDataRecord attrValue attrId cdata)
 
-            Just (Character cdata) ->
-                Just (Character <| getNewDataRecord attrValue attrId cdata)
+        Just (Location ldata) ->
+            Just (Location <| getNewDataRecord attrValue attrId ldata)
 
-            Just (Location ldata) ->
-                Just (Location <| getNewDataRecord attrValue attrId ldata)
-
-            Nothing ->
-                Nothing
+        Nothing ->
+            Nothing
 
 
-createAttributeIfNotExistsAndOrSetValue : AttrTypes -> String -> Maybe String -> Maybe Interactable -> Maybe Interactable
-createAttributeIfNotExistsAndOrSetValue theVal attrId mbInternal mbinteractable =
-    createAttributeIfNotExists theVal attrId mbInternal mbinteractable
-        |> setAttributeValue theVal attrId mbInternal
+createAttributeIfNotExistsAndOrSetValue : AttrTypes -> String -> Maybe Interactable -> Maybe Interactable
+createAttributeIfNotExistsAndOrSetValue theVal attrId mbinteractable =
+    createAttributeIfNotExists theVal attrId mbinteractable
+        |> setAttributeValue theVal attrId
 
 
 {-| tries to create and or set the value of several attributes on the interactable given by the list of tuples
@@ -1685,7 +1780,7 @@ createAttributesIfNotExistsAndOrSetValue ltupattrs mbinteractable =
             mbinteractable
 
         head :: rest ->
-            createAttributeIfNotExistsAndOrSetValue (Tuple.second head) (Tuple.first head) Nothing mbinteractable
+            createAttributeIfNotExistsAndOrSetValue (Tuple.second head) (Tuple.first head) mbinteractable
                 |> createAttributesIfNotExistsAndOrSetValue rest
 
 
@@ -1698,7 +1793,7 @@ createOrSetAttributeValueFromOtherInterAttr attrId otherInterAtrrId otherInterId
     -- if the attribute doesnt exist in the other interactable it doesn't create or set any attribute
     case mbAttrVal of
         Just theAttrVal ->
-            createAttributeIfNotExistsAndOrSetValue theAttrVal attrId Nothing mbinteractable
+            createAttributeIfNotExistsAndOrSetValue theAttrVal attrId mbinteractable
 
         Nothing ->
             mbinteractable
@@ -1785,19 +1880,6 @@ setNextChangeWorldCommandsToBeExecuted lcwcmds mbInteractable =
 clearNextChangeWorldCommandsToBeExecuted : Maybe Interactable -> Maybe Interactable
 clearNextChangeWorldCommandsToBeExecuted mbInteractable =
     setNextChangeWorldCommandsToBeExecuted [] mbInteractable
-
-
-getReservedAttrIds : List String
-getReservedAttrIds =
-    [ "playerAnswer"
-    , "isCorrectlyAnswered"
-    , "isIncorrectlyAnswered"
-    , "narrativeHeader"
-
-    --  , "additionalTextDict"
-    , "chosenOption"
-    , "answerOptionsList"
-    ]
 
 
 comparesEqual : String -> String -> Types.AnswerCase -> Types.AnswerSpaces -> Bool

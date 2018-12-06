@@ -284,9 +284,9 @@ type ChangeWorldCommand
     | ClearWrittenText ID
     | CheckIfAnswerCorrect QuestionAnswer String CheckAnswerData ID
     | CreateCounterIfNotExists String ID --nameIdOfCounter InteractableID
-    | CreateAttributeIfNotExists AttrTypes String (Maybe String) ID -- value nameOfAttributeId  InteractableID
-    | SetAttributeValue AttrTypes String (Maybe String) ID
-    | CreateAttributeIfNotExistsAndOrSetValue AttrTypes String (Maybe String) ID
+    | CreateAttributeIfNotExists AttrTypes String ID -- value nameOfAttributeId  InteractableID
+    | SetAttributeValue AttrTypes String ID
+    | CreateAttributeIfNotExistsAndOrSetValue AttrTypes String ID
     | CreateOrSetAttributeValueFromOtherInterAttr String String ID ID -- nameOfAttributeId otherInteractableAttributeId otherInteractableId InteractableID
     | CreateAMultiChoice (Dict String (List ( String, String ))) ID
     | RemoveMultiChoiceOptions ID
@@ -302,7 +302,6 @@ type ChangeWorldCommand
     | EndStory EndingType String
     | CheckAndActIfChosenOptionIs String (List CheckOptionData) ID
     | ExecuteCustomFunc (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) InteractionExtraInfo ID
-    | ExecuteCustomFuncUsingRandomElems (InteractionExtraInfo -> List Float -> Manifest -> List ChangeWorldCommand) InteractionExtraInfo (List Float) ID
 
 
 
@@ -319,7 +318,7 @@ type QuasiChangeWorldCommand
     | Write_GpsInfoToItem ID
     | Write_InputTextToItem ID
     | Execute_CustomFunc (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) ID
-    | Execute_CustomFuncUsingRandomElems Int (InteractionExtraInfo -> List Float -> Manifest -> List ChangeWorldCommand) ID
+    | Execute_CustomFuncUsingRandomElems Int (List Float -> InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) ID
 
 
 type QuasiChangeWorldCommandWithBackendInfo

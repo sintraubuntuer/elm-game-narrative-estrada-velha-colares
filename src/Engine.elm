@@ -596,7 +596,7 @@ replaceQuasiCwCmdsWithCwcommands extraInfo lfloats quasiCwCommand =
             ( replaceExecuteCustumFunc func extraInfo interactableId, lfloats )
 
         Execute_CustomFuncUsingRandomElems nrRandomElems func interactableId ->
-            ( ExecuteCustomFuncUsingRandomElems func extraInfo (List.take nrRandomElems lfloats) interactableId, List.drop nrRandomElems lfloats )
+            ( replaceExecuteCustumFunc (func (List.take nrRandomElems lfloats)) extraInfo interactableId, List.drop nrRandomElems lfloats )
 
 
 replaceExecuteCustumFunc : (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> InteractionExtraInfo -> String -> ChangeWorldCommand
@@ -717,32 +717,11 @@ changeWorld :
 changeWorld changes (Model story) =
     let
         doChange change ( storyRecord, linteractionIncidents ) =
-            case change of
-                MoveTo location ->
-                    ( { storyRecord | currentLocation = location }, linteractionIncidents )
-
-                LoadScene sceneName ->
-                    ( { storyRecord | currentScene = sceneName }, linteractionIncidents )
-
-                EndStory endingtype ending ->
-                    ( { storyRecord | theEnd = Just (TheEnd endingtype ending) }, linteractionIncidents )
-
-                SetChoiceLanguages dictLgs ->
-                    ( { storyRecord | choiceLanguages = dictLgs }, linteractionIncidents )
-
-                AddChoiceLanguage lgId lgName ->
-                    -- used to allow the increase of available languages during the narrative
-                    ( { storyRecord | choiceLanguages = Dict.insert lgId lgName storyRecord.choiceLanguages }, linteractionIncidents )
-
-                _ ->
-                    let
-                        ( newManifest, newIncidents ) =
-                            Engine.Manifest.update change ( storyRecord.manifest, linteractionIncidents )
-                    in
-                    ( { storyRecord | manifest = newManifest }, newIncidents )
-
-        --_ =
-        --    Debug.log "after Engine Update the number of elements of prandomfloats is : " (List.length story.lprandomfloats)
+            let
+                ( newStory, newIncidents ) =
+                    Engine.Manifest.update change ( storyRecord, linteractionIncidents )
+            in
+            ( newStory, newIncidents )
     in
     List.foldr (\chg y -> doChange chg y) ( story, [] ) changes
         |> (\( x, y ) -> ( Model x, y ))
@@ -1171,12 +1150,12 @@ increaseCounter =
 
 createAttributeIfNotExists : AttrTypes -> String -> String -> ChangeWorldCommand
 createAttributeIfNotExists val attrId interactableId =
-    CreateAttributeIfNotExists val attrId Nothing interactableId
+    CreateAttributeIfNotExists val attrId interactableId
 
 
 createAttributeIfNotExistsAndOrSetValue : AttrTypes -> String -> String -> ChangeWorldCommand
 createAttributeIfNotExistsAndOrSetValue val attrId interactableId =
-    CreateAttributeIfNotExistsAndOrSetValue val attrId Nothing interactableId
+    CreateAttributeIfNotExistsAndOrSetValue val attrId interactableId
 
 
 createOrSetAttributeValueFromOtherInterAttr : String -> String -> String -> String -> ChangeWorldCommand
@@ -1186,7 +1165,7 @@ createOrSetAttributeValueFromOtherInterAttr =
 
 setAttributeValue : AttrTypes -> String -> String -> ChangeWorldCommand
 setAttributeValue val attrId interactableId =
-    CreateAttributeIfNotExistsAndOrSetValue val attrId Nothing interactableId
+    CreateAttributeIfNotExistsAndOrSetValue val attrId interactableId
 
 
 removeAttributeIfExists : String -> String -> ChangeWorldCommand
@@ -1199,7 +1178,7 @@ execute_CustomFunc =
     Execute_CustomFunc
 
 
-execute_CustomFuncUsingRandomElems : Int -> (InteractionExtraInfo -> List Float -> Manifest -> List ChangeWorldCommand) -> ID -> QuasiChangeWorldCommand
+execute_CustomFuncUsingRandomElems : Int -> (List Float -> InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> ID -> QuasiChangeWorldCommand
 execute_CustomFuncUsingRandomElems =
     Execute_CustomFuncUsingRandomElems
 
