@@ -79,7 +79,6 @@ module Engine exposing
       , moveItemToCharacterInventory
       , noChosenOptionYet
       , noFeedback
-      , noQuasiChange
       , noQuasiChangeWithBackend
         --, processChosenOptionEqualTo
       , removeAttributeIfExists
@@ -480,15 +479,17 @@ preUpdate interactableId extraInfo ((Model story) as model) =
                 Just quasicwcmd ->
                     determineIfInfoNeeded quasicwcmd
 
-        --changesFromQuasi : ( List ChangeWorldCommand, List Float )
         ( changesFromQuasi, newLfloats ) =
-            --lquasicwcmds
-            --|> List.map (replaceQuasiCwCmdsWithCwcommands extraInfo story.lprandomfloats)
             List.foldl
-                (\qcwcmd tupAcc ->
-                    replaceQuasiCwCmdsWithCwcommands extraInfo (Tuple.second tupAcc) qcwcmd
-                        --|> concatResultTo tupAcc
-                        |> (\( cwcmd, lf ) -> ( List.append (Tuple.first tupAcc) [ cwcmd ], lf ))
+                (\qcwcmdFunc ( lcwcmds, lfloats ) ->
+                    case qcwcmdFunc of
+                        CurriedCmdThatMightUseRandoms qcmdFunc ->
+                            qcmdFunc extraInfo lfloats
+                                |> (\( cwcmd, new_lf ) -> ( List.append lcwcmds [ cwcmd ], new_lf ))
+
+                        CurriedCmd qcmdFunc ->
+                            qcmdFunc extraInfo
+                                |> (\cwcmd -> ( List.append lcwcmds [ cwcmd ], lfloats ))
                 )
                 ( [], story.lprandomfloats )
                 lquasicwcmds
@@ -574,34 +575,14 @@ replaceBkendQuasiCwCmdsWithCwcommands extraInfo quasiBkendCwCommand =
             replaceCheckIfAnswerCorrectUsingBackend extraInfo.bkAnsStatus strUrl cAnswerData interactableId
 
 
-replaceQuasiCwCmdsWithCwcommands : Types.InteractionExtraInfo -> List Float -> QuasiChangeWorldCommand -> ( ChangeWorldCommand, List Float )
-replaceQuasiCwCmdsWithCwcommands extraInfo lfloats quasiCwCommand =
-    case quasiCwCommand of
-        NoQuasiChange ->
-            ( NoChange, lfloats )
-
-        Check_IfAnswerCorrect theCorrectAnswers cAnswerData interactableId ->
-            ( replaceCheckIfAnswerCorrect extraInfo.mbInputText theCorrectAnswers cAnswerData interactableId, lfloats )
-
-        CheckAndAct_IfChosenOptionIs lcOptionData itemid ->
-            ( replaceCheckAndActIfChosenOptionIs extraInfo.mbInputText lcOptionData itemid, lfloats )
-
-        Write_InputTextToItem interactableId ->
-            ( replaceWriteInputTextToItem extraInfo.mbInputText interactableId, lfloats )
-
-        Write_GpsInfoToItem interactableId ->
-            ( replaceWriteGpsInfoToItem extraInfo.geolocationInfoText interactableId, lfloats )
-
-        Execute_CustomFunc func interactableId ->
-            ( replaceExecuteCustumFunc func extraInfo interactableId, lfloats )
-
-        Execute_CustomFuncUsingRandomElems nrRandomElems func interactableId ->
-            ( replaceExecuteCustumFunc (func (List.take nrRandomElems lfloats)) extraInfo interactableId, List.drop nrRandomElems lfloats )
-
-
-replaceExecuteCustumFunc : (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> InteractionExtraInfo -> String -> ChangeWorldCommand
-replaceExecuteCustumFunc func extraInfo interactableId =
+produceCmdExecuteCustumFunc : (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> String -> InteractionExtraInfo -> ChangeWorldCommand
+produceCmdExecuteCustumFunc func interactableId extraInfo =
     ExecuteCustomFunc func extraInfo interactableId
+
+
+produceCmdExecuteCustumFuncUsingRandomElems : Int -> (List Float -> InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> String -> InteractionExtraInfo -> List Float -> ( ChangeWorldCommand, List Float )
+produceCmdExecuteCustumFuncUsingRandomElems nrRandomElems func interactableId extraInfo lfloats =
+    ( ExecuteCustomFunc (func (List.take nrRandomElems lfloats)) extraInfo interactableId, List.drop nrRandomElems lfloats )
 
 
 replaceCheckIfAnswerCorrectUsingBackend : BackendAnswerStatus -> String -> CheckBkendAnswerData -> String -> ChangeWorldCommand
@@ -663,12 +644,12 @@ replaceCheckIfAnswerCorrectUsingBackend bkendAnsStatus strUrl cAnswerData intera
                 interactableId
 
 
-replaceCheckIfAnswerCorrect : Maybe String -> QuestionAnswer -> CheckAnswerData -> String -> ChangeWorldCommand
-replaceCheckIfAnswerCorrect mbInputText questionAns cAnswerData interactableId =
-    if mbInputText /= Nothing && mbInputText /= Just "" then
+produceCmdCheckIfAnswerCorrect : QuestionAnswer -> CheckAnswerData -> String -> InteractionExtraInfo -> ChangeWorldCommand
+produceCmdCheckIfAnswerCorrect questionAns cAnswerData interactableId extraInfo =
+    if extraInfo.mbInputText /= Nothing && extraInfo.mbInputText /= Just "" then
         let
             playerAnswer =
-                Maybe.withDefault "" mbInputText
+                Maybe.withDefault "" extraInfo.mbInputText
         in
         CheckIfAnswerCorrect questionAns playerAnswer cAnswerData interactableId
 
@@ -676,11 +657,11 @@ replaceCheckIfAnswerCorrect mbInputText questionAns cAnswerData interactableId =
         NoChange
 
 
-replaceCheckAndActIfChosenOptionIs : Maybe String -> List CheckOptionData -> String -> ChangeWorldCommand
-replaceCheckAndActIfChosenOptionIs mbInputText lcOptionData itemid =
+produceCmdCheckAndActIfChosenOptionIs : List CheckOptionData -> String -> InteractionExtraInfo -> ChangeWorldCommand
+produceCmdCheckAndActIfChosenOptionIs lcOptionData itemid extrainfo =
     let
         playerChoice =
-            Maybe.withDefault "" mbInputText
+            Maybe.withDefault "" extrainfo.mbInputText
     in
     CheckAndActIfChosenOptionIs playerChoice lcOptionData itemid
 
@@ -689,18 +670,18 @@ replaceCheckAndActIfChosenOptionIs mbInputText lcOptionData itemid =
 and substitute with WriteInputTextToItem by adding the
 extra parameter Maybe InputText ( text typed by the user ) it got from Main.elm
 -}
-replaceWriteInputTextToItem : Maybe String -> String -> ChangeWorldCommand
-replaceWriteInputTextToItem mbText id =
-    WriteTextToItem (Maybe.withDefault "" mbText) id
+produceCmdWriteInputTextToItem : String -> Types.InteractionExtraInfo -> ChangeWorldCommand
+produceCmdWriteInputTextToItem id extraInfo =
+    WriteTextToItem (extraInfo.mbInputText |> Maybe.withDefault "") id
 
 
 {-| used to replace the Write\_GpsInfo QuasiChangeWorldCommand coming from the configuration rules file
 and substitute with WriteGpsLocInfoToItem by adding the
 extra parameter Maybe GeolocationInfo it got from Main.elm
 -}
-replaceWriteGpsInfoToItem : String -> String -> ChangeWorldCommand
-replaceWriteGpsInfoToItem geolocationInfoText id =
-    WriteGpsLocInfoToItem geolocationInfoText id
+produceCmdWriteGpsInfoToItem : String -> Types.InteractionExtraInfo -> ChangeWorldCommand
+produceCmdWriteGpsInfoToItem interactableId extraInfo =
+    WriteGpsLocInfoToItem extraInfo.geolocationInfoText extraInfo interactableId
 
 
 {-| A way to change the story world directly, rather than responding to a player's interaction.
@@ -1071,8 +1052,12 @@ writeTextToItem =
 
 
 write_InputTextToItem : String -> QuasiChangeWorldCommand
-write_InputTextToItem =
-    Write_InputTextToItem
+write_InputTextToItem interactableId =
+    let
+        oneArgToCmdWriteInputTextToItem =
+            produceCmdWriteInputTextToItem interactableId
+    in
+    CurriedCmd oneArgToCmdWriteInputTextToItem
 
 
 clearWrittenText : String -> ChangeWorldCommand
@@ -1089,23 +1074,29 @@ writeForceTextToItemFromGivenItemAttr =
 
 
 write_GpsInfoToItem : String -> QuasiChangeWorldCommand
-write_GpsInfoToItem =
-    Write_GpsInfoToItem
+write_GpsInfoToItem interactableId =
+    let
+        oneArgToCmdWriteGpsInfoToItem =
+            produceCmdWriteGpsInfoToItem interactableId
+    in
+    CurriedCmd oneArgToCmdWriteGpsInfoToItem
 
 
 {-| function that comes from the Rules config and is gonna be replaced by CheckIfAnswerCorrect in Engine.update
-after it is replaced by CheckIfAnswerCorrect it will be processed by the respective function in Engine.Manifest which
-Checks if player answer is
-contained in given list string = allowed right answers ( first arg )
+after it is replaced by CheckIfAnswerCorrect it will be processed by the respective function in Engine.Manifest
 -}
 check_IfAnswerCorrect : QuestionAnswer -> CheckAnswerData -> String -> QuasiChangeWorldCommand
-check_IfAnswerCorrect =
-    Check_IfAnswerCorrect
+check_IfAnswerCorrect questAnswers cAnswerData interactableId =
+    let
+        oneArgToCmdCheckIfAnswerCorrect =
+            produceCmdCheckIfAnswerCorrect questAnswers cAnswerData interactableId
+    in
+    CurriedCmd oneArgToCmdCheckIfAnswerCorrect
 
 
 simpleCheck_IfAnswerCorrect : QuestionAnswer -> Maybe Int -> String -> QuasiChangeWorldCommand
-simpleCheck_IfAnswerCorrect lcorrectAnswersAndFuncs mbNrTries interactableId =
-    Check_IfAnswerCorrect lcorrectAnswersAndFuncs (CheckAnswerData mbNrTries CaseInsensitiveAnswer AnswerSpacesDontMatter HeaderAnswerAndCorrectIncorrect Dict.empty Dict.empty [] []) interactableId
+simpleCheck_IfAnswerCorrect questAnswers mbNrTries interactableId =
+    check_IfAnswerCorrect questAnswers (CheckAnswerData mbNrTries CaseInsensitiveAnswer AnswerSpacesDontMatter HeaderAnswerAndCorrectIncorrect Dict.empty Dict.empty [] []) interactableId
 
 
 check_IfAnswerCorrectUsingBackend : String -> CheckBkendAnswerData -> String -> QuasiChangeWorldCommandWithBackendInfo
@@ -1119,8 +1110,12 @@ simpleCheck_IfAnswerCorrectUsingBackend strUrl mbNrTries interactableId =
 
 
 checkAndAct_IfChosenOptionIs : List CheckOptionData -> String -> QuasiChangeWorldCommand
-checkAndAct_IfChosenOptionIs =
-    CheckAndAct_IfChosenOptionIs
+checkAndAct_IfChosenOptionIs lcOptionData itemid =
+    let
+        oneArgToCmdCheckAndActIfChosenOptionIs =
+            produceCmdCheckAndActIfChosenOptionIs lcOptionData itemid
+    in
+    CurriedCmd oneArgToCmdCheckAndActIfChosenOptionIs
 
 
 
@@ -1174,13 +1169,21 @@ removeAttributeIfExists =
 
 
 execute_CustomFunc : (InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> ID -> QuasiChangeWorldCommand
-execute_CustomFunc =
-    Execute_CustomFunc
+execute_CustomFunc customFunc interactableId =
+    let
+        oneArgToCmdExecuteCustumFunc =
+            produceCmdExecuteCustumFunc customFunc interactableId
+    in
+    CurriedCmd oneArgToCmdExecuteCustumFunc
 
 
 execute_CustomFuncUsingRandomElems : Int -> (List Float -> InteractionExtraInfo -> Manifest -> List ChangeWorldCommand) -> ID -> QuasiChangeWorldCommand
-execute_CustomFuncUsingRandomElems =
-    Execute_CustomFuncUsingRandomElems
+execute_CustomFuncUsingRandomElems nrRandomElems customFunc interactableId =
+    let
+        twoArgsToCmdExecuteCustumFuncUsingRandomElems =
+            produceCmdExecuteCustumFuncUsingRandomElems nrRandomElems customFunc interactableId
+    in
+    CurriedCmdThatMightUseRandoms twoArgsToCmdExecuteCustumFuncUsingRandomElems
 
 
 {-| Adds a character to a location, or moves a character to a different location (characters can only be in one location at a time, or off-screen). (Use moveTo to move yourself between locations.)
@@ -1341,11 +1344,6 @@ headerAnswerAndCorrectIncorrect =
 noFeedback : Types.AnswerFeedback
 noFeedback =
     NoFeedback
-
-
-noQuasiChange : Types.QuasiChangeWorldCommand
-noQuasiChange =
-    NoQuasiChange
 
 
 noQuasiChangeWithBackend : Types.QuasiChangeWorldCommandWithBackendInfo
